@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Albert Chat Widget – Beispielintegration</title>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: 'Inter', system-ui, sans-serif;
+        background: linear-gradient(135deg, #f8fafc, #e0f2fe);
+        color: #0f172a;
+        min-height: 100vh;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 48px;
+      }
+      .demo-card {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 20px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        padding: 48px;
+        max-width: 560px;
+        box-shadow: 0 30px 60px rgba(30, 64, 175, 0.2);
+      }
+      h1 {
+        font-size: 2.5rem;
+        margin-bottom: 16px;
+      }
+      p {
+        font-size: 1.1rem;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="demo-card">
+      <h1>Albert AI Chat Widget</h1>
+      <p>
+        Dieses Beispiel zeigt, wie der Chat über ein Script-Tag geladen und konfiguriert werden kann.
+        Öffnen Sie das Widget über den Button unten rechts oder warten Sie auf die Sprechblase.
+      </p>
+    </div>
+
+    <script src="../dist/index.global.js" defer></script>
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        AlbertChat.init({
+          texts: {
+            headerTitle: 'Albert Support',
+            headerSubtitle: 'Wir helfen Ihnen gerne weiter',
+            teaserText: '👋 Darf ich Ihnen etwas zeigen?',
+            launcherLabel: 'Frag Albert',
+          },
+          theme: {
+            primaryColor: '#0ea5e9',
+            launcherBackground: '#0284c7',
+            userMessageColor: '#0284c7',
+            userTextColor: '#ffffff',
+            agentMessageColor: '#f0f9ff',
+            agentTextColor: '#0f172a',
+          },
+          footerLinks: [
+            { label: 'Datenschutz', href: 'https://example.com/privacy', target: '_blank' },
+            { label: 'AGB', href: 'https://example.com/agb', target: '_blank' },
+          ],
+          teaserDelayMs: 5000,
+          mockResponses: [
+            'Hallo! Ich bin der AI-Assistent Albert – wie kann ich helfen?',
+            'Das ist aktuell eine simulierte Antwort. Bald kommt hier Ihr Backend ins Spiel.',
+            'Sie können Farben, Texte und mehr über die Initialisierung konfigurieren.',
+          ],
+        });
+      });
+    </script>
+  </body>
+</html>

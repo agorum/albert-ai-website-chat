@@ -1,0 +1,25 @@
+{
+  "name": "albert-chat-widget",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "typescript": "^5.4.5"
+  },
+  "tsup": {
+    "entry": ["src/index.ts"],
+    "format": ["esm", "iife"],
+    "sourcemap": true,
+    "dts": true,
+    "minify": true,
+    "globalName": "AlbertChat",
+    "outDir": "dist",
+    "clean": true
+  }
+}
