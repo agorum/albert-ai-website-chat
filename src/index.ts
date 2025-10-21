@@ -215,6 +215,7 @@ export class ChatWidget {
   private closeButton!: HTMLButtonElement;
   private reloadButton!: HTMLButtonElement;
   private footerLinksContainer!: HTMLDivElement;
+  private typingIndicator?: HTMLDivElement;
   private isOpen = false;
   private hasEverOpened = false;
   private messages: ChatMessage[] = [];
@@ -223,6 +224,12 @@ export class ChatWidget {
   private readonly instanceId: number;
   private lastTextareaHeight = 0;
   private resizeObserver?: ResizeObserver;
+  private activeStreamTimeout: number | null = null;
+  private activeStreamInterval: number | null = null;
+  private streamingMessageBubble?: HTMLDivElement;
+  private streamingMessageTimestamp?: HTMLSpanElement;
+  private streamingMessageWrapper?: HTMLDivElement;
+  private currentStreamingMessage?: ChatMessage;
 
   constructor(options: DeepPartial<ChatWidgetOptions> = {}) {
     this.options = deepMerge(defaultOptions, options);
@@ -258,6 +265,8 @@ export class ChatWidget {
 
   destroy(): void {
     this.stopTeaserCountdown();
+    this.clearStreamingTimers();
+    this.hideTypingIndicator();
     window.removeEventListener("resize", this.handleWindowResize);
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -279,6 +288,7 @@ export class ChatWidget {
     this.chatWindow.setAttribute("aria-hidden", "false");
     this.focusInput();
     this.hideTeaser();
+    this.scrollToBottom({ smooth: true });
     this.updateDimensions();
   }
 
@@ -301,6 +311,8 @@ export class ChatWidget {
   }
 
   resetConversation(): void {
+    this.clearStreamingTimers();
+    this.hideTypingIndicator();
     this.messages = [];
     if (this.messageList) {
       this.messageList.innerHTML = "";
@@ -315,7 +327,7 @@ export class ChatWidget {
 
   addMessage(message: ChatMessage): void {
     this.messages.push(message);
-    this.renderMessage(message);
+    this.appendMessageElement(message);
   }
 
   private resolveTarget(): HTMLElement {
@@ -483,6 +495,8 @@ export class ChatWidget {
         flex-direction: column;
         padding: 0 var(--acw-spacing-md);
         background: var(--acw-surface-color);
+        overflow: hidden;
+        min-height: 0;
       }
       .acw-messages {
         flex: 1;
@@ -491,6 +505,8 @@ export class ChatWidget {
         display: flex;
         flex-direction: column;
         gap: var(--acw-spacing-sm);
+        min-height: 0;
+        scroll-behavior: smooth;
       }
       .acw-empty-state {
         margin: auto;
@@ -542,6 +558,7 @@ export class ChatWidget {
         flex-direction: column;
         gap: var(--acw-spacing-sm);
         background: var(--acw-surface-color);
+        flex-shrink: 0;
       }
       .acw-input-row {
         display: grid;
@@ -607,7 +624,7 @@ export class ChatWidget {
       }
       .acw-teaser {
         position: relative;
-        display: inline-flex;
+        display: none;
         align-items: center;
         gap: var(--acw-spacing-xs);
         padding: var(--acw-spacing-sm) var(--acw-spacing-md);
@@ -637,9 +654,52 @@ export class ChatWidget {
         z-index: -1;
       }
       .acw-teaser.acw-visible {
+        display: inline-flex;
         opacity: 1;
         transform: translateY(0);
         pointer-events: auto;
+      }
+      .acw-message-streaming .acw-timestamp {
+        opacity: 0;
+      }
+      .acw-typing {
+        align-self: flex-start;
+      }
+      .acw-typing .acw-bubble {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--acw-agent-message-color);
+        color: var(--acw-agent-text-color);
+      }
+      .acw-typing-dots {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .acw-typing-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--acw-agent-text-color);
+        opacity: 0.5;
+        animation: acw-typing-bounce 1.2s infinite;
+      }
+      .acw-typing-dot:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .acw-typing-dot:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes acw-typing-bounce {
+        0%, 80%, 100% {
+          transform: translateY(0);
+          opacity: 0.4;
+        }
+        40% {
+          transform: translateY(-4px);
+          opacity: 1;
+        }
       }
       @media (max-width: 768px) {
         .acw-container {
@@ -825,6 +885,7 @@ export class ChatWidget {
     teaser.className = "acw-teaser";
     teaser.setAttribute("aria-label", this.options.texts.teaserText);
     teaser.textContent = this.options.texts.teaserText;
+    teaser.style.display = "none";
     return teaser;
   }
 
@@ -917,14 +978,11 @@ export class ChatWidget {
     this.addMessage(message);
   }
 
-  private renderMessage(message: ChatMessage): void {
-    if (!this.messageList) {
-      return;
-    }
-    if (this.messageList.querySelector(".acw-empty-state")) {
-      this.messageList.innerHTML = "";
-    }
-
+  private buildMessageElement(message: ChatMessage): {
+    wrapper: HTMLDivElement;
+    bubble: HTMLDivElement;
+    timestamp: HTMLSpanElement;
+  } {
     const wrapper = document.createElement("div");
     wrapper.className = `acw-message acw-message-${message.role}`;
 
@@ -939,24 +997,173 @@ export class ChatWidget {
     wrapper.appendChild(bubble);
     wrapper.appendChild(metadata);
 
-    this.messageList.appendChild(wrapper);
-    this.messageList.scrollTop = this.messageList.scrollHeight;
+    return { wrapper, bubble, timestamp: metadata };
+  }
+
+  private appendMessageElement(
+    message: ChatMessage,
+    scroll = true
+  ): { wrapper: HTMLDivElement; bubble: HTMLDivElement; timestamp: HTMLSpanElement } | null {
+    if (!this.messageList) {
+      return null;
+    }
+    if (this.messageList.querySelector(".acw-empty-state")) {
+      this.messageList.innerHTML = "";
+    }
+
+    const elements = this.buildMessageElement(message);
+    this.messageList.appendChild(elements.wrapper);
+    if (scroll) {
+      this.scrollToBottom({ smooth: true });
+    }
+    return elements;
+  }
+
+  private scrollToBottom({ smooth = false }: { smooth?: boolean } = {}): void {
+    if (!this.messageList) {
+      return;
+    }
+    const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
+    window.requestAnimationFrame(() => {
+      if (!this.messageList) {
+        return;
+      }
+      if (typeof this.messageList.scrollTo === "function") {
+        this.messageList.scrollTo({ top: this.messageList.scrollHeight, behavior });
+      } else {
+        this.messageList.scrollTop = this.messageList.scrollHeight;
+      }
+    });
+  }
+
+  private showTypingIndicator(): void {
+    if (!this.messageList || this.typingIndicator) {
+      return;
+    }
+    const indicator = document.createElement("div");
+    indicator.className = "acw-message acw-message-agent acw-typing";
+    indicator.setAttribute("aria-live", "polite");
+
+    const bubble = document.createElement("div");
+    bubble.className = "acw-bubble";
+    bubble.innerHTML =
+      '<span class="acw-typing-dots"><span class="acw-typing-dot"></span><span class="acw-typing-dot"></span><span class="acw-typing-dot"></span></span>';
+
+    indicator.appendChild(bubble);
+    this.messageList.appendChild(indicator);
+    this.typingIndicator = indicator;
+    this.scrollToBottom({ smooth: true });
+  }
+
+  private hideTypingIndicator(): void {
+    if (!this.typingIndicator) {
+      return;
+    }
+    this.typingIndicator.remove();
+    this.typingIndicator = undefined;
+  }
+
+  private clearStreamingTimers({ finalize = false }: { finalize?: boolean } = {}): void {
+    if (this.activeStreamTimeout !== null) {
+      window.clearTimeout(this.activeStreamTimeout);
+      this.activeStreamTimeout = null;
+    }
+    if (this.activeStreamInterval !== null) {
+      window.clearInterval(this.activeStreamInterval);
+      this.activeStreamInterval = null;
+    }
+    if (
+      finalize &&
+      this.currentStreamingMessage &&
+      this.streamingMessageBubble &&
+      this.streamingMessageTimestamp
+    ) {
+      this.streamingMessageBubble.textContent = this.currentStreamingMessage.content;
+      this.streamingMessageTimestamp.textContent = formatTime(
+        this.currentStreamingMessage.timestamp,
+        this.options.locale
+      );
+      if (this.streamingMessageWrapper) {
+        this.streamingMessageWrapper.classList.remove("acw-message-streaming");
+      }
+      this.scrollToBottom({ smooth: true });
+    } else if (this.streamingMessageWrapper) {
+      this.streamingMessageWrapper.classList.remove("acw-message-streaming");
+    }
+    this.currentStreamingMessage = undefined;
+    this.streamingMessageBubble = undefined;
+    this.streamingMessageTimestamp = undefined;
+    this.streamingMessageWrapper = undefined;
+  }
+
+  private streamAgentMessage(content: string): void {
+    if (!this.messageList) {
+      return;
+    }
+
+    const timestamp = new Date();
+    const message: ChatMessage = {
+      role: "agent",
+      content,
+      timestamp,
+    };
+    this.messages.push(message);
+
+    const elements = this.appendMessageElement({ ...message, content: "" }, false);
+    if (!elements) {
+      return;
+    }
+
+    const { bubble, timestamp: metadata, wrapper } = elements;
+    wrapper.classList.add("acw-message-streaming");
+    this.streamingMessageBubble = bubble;
+    this.streamingMessageTimestamp = metadata;
+    this.streamingMessageWrapper = wrapper;
+    this.currentStreamingMessage = message;
+    metadata.textContent = "";
+    this.scrollToBottom({ smooth: true });
+
+    const characters = Array.from(content);
+    let index = 0;
+    const chunkSize = characters.length > 120 ? 3 : characters.length > 60 ? 2 : 1;
+    const intervalMs = characters.length > 80 ? 20 : 35;
+
+    const flush = (): void => {
+      if (!this.streamingMessageBubble) {
+        return;
+      }
+      index = Math.min(characters.length, index + chunkSize);
+      this.streamingMessageBubble.textContent = characters.slice(0, index).join("");
+      this.scrollToBottom({ smooth: true });
+      if (index >= characters.length) {
+        this.clearStreamingTimers({ finalize: true });
+      }
+    };
+
+    this.activeStreamInterval = window.setInterval(flush, intervalMs);
+    flush();
   }
 
   private simulateAgentReply(): void {
     if (!this.options.mockResponses.length) {
       return;
     }
+    this.hideTypingIndicator();
+    this.clearStreamingTimers({ finalize: true });
+
+    this.showTypingIndicator();
     const [minDelay, maxDelay] = this.options.mockResponseDelayMs;
     const delay = clamp(
       minDelay + Math.random() * (maxDelay - minDelay),
       minDelay,
       maxDelay
     );
-    window.setTimeout(() => {
+    this.activeStreamTimeout = window.setTimeout(() => {
+      this.activeStreamTimeout = null;
       const response = this.options.mockResponses[this.mockResponseIndex];
       this.mockResponseIndex = (this.mockResponseIndex + 1) % this.options.mockResponses.length;
-      this.enqueueAgentMessage(response);
+      this.hideTypingIndicator();
+      this.streamAgentMessage(response);
     }, delay);
   }
 
@@ -1038,12 +1245,20 @@ export class ChatWidget {
   }
 
   private showTeaser(): void {
+    if (!this.teaserBubble) {
+      return;
+    }
+    this.teaserBubble.style.display = "inline-flex";
     this.teaserBubble.classList.add("acw-visible");
   }
 
   private hideTeaser(): void {
     this.stopTeaserCountdown();
+    if (!this.teaserBubble) {
+      return;
+    }
     this.teaserBubble.classList.remove("acw-visible");
+    this.teaserBubble.style.display = "none";
   }
 }
 

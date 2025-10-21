@@ -99,8 +99,71 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
   const launcher = page.locator('.acw-launcher');
   await expect(launcher).toBeVisible();
 
-  // Teaser sollte nach der konfigurierten Zeit erscheinen
-  await expect(page.locator('.acw-teaser')).toBeVisible({ timeout: 6000 });
+  const teaser = page.locator('.acw-teaser.acw-visible');
+  await expect(teaser).toBeVisible({ timeout: 7000 });
+
+  await launcher.click();
+
+  const chat = page.locator('.acw-chat');
+  await expect(chat).toHaveClass(/acw-open/, { timeout: 2000 });
+  await expect(teaser).toBeHidden();
+
+  const input = page.locator('textarea.acw-textarea');
+  await input.click();
+  await input.fill('');
+  await input.type('Hallo!');
+  await page.keyboard.press('Backspace');
+  await expect(input).toHaveValue('Hallo');
+  await page.keyboard.press('Enter');
+  await expect(input).toHaveValue('');
+
+  const userMessage = page.locator('.acw-message-user .acw-bubble').last();
+  await expect(userMessage).toHaveText('Hallo', { timeout: 2000 });
+
+  const typingIndicator = page.locator('.acw-typing');
+  await expect(typingIndicator).toBeVisible({ timeout: 2000 });
+
+  const agentMessage = page.locator('.acw-message-agent .acw-bubble').last();
+  await expect(agentMessage).toHaveText(/Albert|Danke/i, { timeout: 8000 });
+  await expect(typingIndicator).toBeHidden({ timeout: 4000 });
+  const agentText = (await agentMessage.textContent()) ?? '';
+  expect(agentText.trim().length).toBeGreaterThan(10);
+
+  const inputVisible = await page.evaluate(() => {
+    const host = document.querySelector('.acw-host');
+    if (!(host instanceof HTMLElement) || !host.shadowRoot) {
+      return false;
+    }
+    const chatEl = host.shadowRoot.querySelector('.acw-chat');
+    const textarea = host.shadowRoot.querySelector('.acw-textarea');
+    if (!(chatEl instanceof HTMLElement) || !(textarea instanceof HTMLElement)) {
+      return false;
+    }
+    const chatRect = chatEl.getBoundingClientRect();
+    const textareaRect = textarea.getBoundingClientRect();
+    return textareaRect.bottom <= chatRect.bottom && textareaRect.top >= chatRect.top;
+  });
+  expect(inputVisible).toBe(true);
+
+  await page.getByRole('button', { name: 'Schließen' }).click();
+  await expect(chat).not.toHaveClass(/acw-open/, { timeout: 2000 });
+
+  await launcher.click();
+  await expect(chat).toHaveClass(/acw-open/, { timeout: 2000 });
+
+  const atBottom = await page.evaluate(() => {
+    const host = document.querySelector('.acw-host');
+    if (!(host instanceof HTMLElement) || !host.shadowRoot) {
+      return false;
+    }
+    const container = host.shadowRoot.querySelector('.acw-messages');
+    if (!(container instanceof HTMLElement)) {
+      return false;
+    }
+    const distance = Math.abs(container.scrollHeight - container.scrollTop - container.clientHeight);
+    return distance < 4;
+  });
+  expect(atBottom).toBe(true);
 
   expect(consoleErrors, 'Konsolenfehler gefunden').toEqual([]);
   expect(pageErrors, 'Seitenfehler gefunden').toEqual([]);

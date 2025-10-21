@@ -10,7 +10,7 @@ Eine konfigurierbare Chat-Widget-Lösung, die sich per Script-Tag in beliebige W
 - Responsive Chat-Oberfläche oberhalb des Launchers mit Header, Reload- und Schließen-Icon
 - Scrollbarer Nachrichtenbereich mit voneinander unterscheidbaren Nutzer-/Agent-Bubbles
 - Eingabebereich mit automatischer Größenanpassung (max. 5 Zeilen), Enter zum Senden, Button daneben
-- Simulierter Agent, der Beispielantworten nach zufälligen Verzögerungen sendet
+- Simulierter Agent mit Tipp-Indikator und gestreamten Antworten nach zufälligen Verzögerungen
 - Typdefinitionen und ESM/IIFE-Bundles für einfache Integration in Build- oder klassische Umgebungen
 
 ## Installation
