@@ -230,6 +230,7 @@ export class ChatWidget {
   private streamingMessageTimestamp?: HTMLSpanElement;
   private streamingMessageWrapper?: HTMLDivElement;
   private currentStreamingMessage?: ChatMessage;
+  private shouldAutoScroll = true;
 
   constructor(options: DeepPartial<ChatWidgetOptions> = {}) {
     this.options = deepMerge(defaultOptions, options);
@@ -268,6 +269,9 @@ export class ChatWidget {
     this.clearStreamingTimers();
     this.hideTypingIndicator();
     window.removeEventListener("resize", this.handleWindowResize);
+    if (this.messageList) {
+      this.messageList.removeEventListener("scroll", this.handleMessagesScroll);
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = undefined;
@@ -288,7 +292,8 @@ export class ChatWidget {
     this.chatWindow.setAttribute("aria-hidden", "false");
     this.focusInput();
     this.hideTeaser();
-    this.scrollToBottom({ smooth: true });
+    this.shouldAutoScroll = true;
+    this.scrollToBottom({ force: true });
     this.updateDimensions();
   }
 
@@ -313,6 +318,7 @@ export class ChatWidget {
   resetConversation(): void {
     this.clearStreamingTimers();
     this.hideTypingIndicator();
+    this.shouldAutoScroll = true;
     this.messages = [];
     if (this.messageList) {
       this.messageList.innerHTML = "";
@@ -325,9 +331,12 @@ export class ChatWidget {
     this.enqueueAgentMessage(this.options.texts.initialMessage, true);
   }
 
-  addMessage(message: ChatMessage): void {
+  addMessage(
+    message: ChatMessage,
+    options: { forceScroll?: boolean; smooth?: boolean; autoScroll?: boolean } = {}
+  ): void {
     this.messages.push(message);
-    this.appendMessageElement(message);
+    this.appendMessageElement(message, options);
   }
 
   private resolveTarget(): HTMLElement {
@@ -501,12 +510,15 @@ export class ChatWidget {
       .acw-messages {
         flex: 1;
         overflow-y: auto;
-        padding: var(--acw-spacing-md) 0;
+        padding: var(--acw-spacing-md) calc(var(--acw-spacing-sm) + 6px) var(--acw-spacing-md) var(--acw-spacing-sm);
         display: flex;
         flex-direction: column;
         gap: var(--acw-spacing-sm);
         min-height: 0;
         scroll-behavior: smooth;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+        scrollbar-gutter: stable both-edges;
       }
       .acw-empty-state {
         margin: auto;
@@ -568,7 +580,7 @@ export class ChatWidget {
       }
       .acw-textarea {
         resize: none;
-        overflow-y: auto;
+        overflow-y: hidden;
         padding: var(--acw-spacing-sm) var(--acw-spacing-md);
         border-radius: var(--acw-radius-md);
         border: 1px solid var(--acw-border-color);
@@ -592,10 +604,11 @@ export class ChatWidget {
         border: none;
         background: var(--acw-send-button-background);
         color: var(--acw-send-button-text-color);
-        padding: var(--acw-spacing-sm) var(--acw-spacing-md);
-        font-weight: 600;
+        padding: 0;
+        width: 46px;
+        height: 46px;
         cursor: pointer;
-        min-height: 44px;
+        min-height: 46px;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
       .acw-send-button:hover {
@@ -605,6 +618,12 @@ export class ChatWidget {
       .acw-send-button:focus-visible {
         outline: 2px solid var(--acw-primary-color);
         outline-offset: 2px;
+      }
+      .acw-send-icon {
+        font-size: 1.15rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
       .acw-footer-links {
         padding: 0 var(--acw-spacing-md) var(--acw-spacing-md);
@@ -621,6 +640,21 @@ export class ChatWidget {
       }
       .acw-footer-link:hover {
         text-decoration: underline;
+      }
+      .acw-messages::-webkit-scrollbar {
+        width: 8px;
+      }
+      .acw-messages::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .acw-messages::-webkit-scrollbar-thumb {
+        background-color: rgba(148, 163, 184, 0.55);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+      }
+      .acw-messages::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(100, 116, 139, 0.75);
       }
       .acw-teaser {
         position: relative;
@@ -821,8 +855,9 @@ export class ChatWidget {
     this.sendButton = document.createElement("button");
     this.sendButton.type = "button";
     this.sendButton.className = "acw-send-button";
-    this.sendButton.innerHTML = `<span class="acw-send-icon">${this.options.icons.sendIcon}</span><span class="acw-send-label">${this.options.texts.sendButtonLabel}</span>`;
+    this.sendButton.innerHTML = `<span class="acw-send-icon">${this.options.icons.sendIcon}</span>`;
     this.sendButton.setAttribute("aria-label", this.options.texts.sendButtonLabel);
+    this.sendButton.title = this.options.texts.sendButtonLabel;
 
     row.appendChild(this.sendButton);
 
@@ -897,6 +932,7 @@ export class ChatWidget {
     this.sendButton.addEventListener("click", () => this.handleSend());
     this.inputField.addEventListener("keydown", (event) => this.handleInputKeyDown(event));
     this.inputField.addEventListener("input", () => this.adjustTextareaHeight());
+    this.messageList.addEventListener("scroll", this.handleMessagesScroll);
 
     window.addEventListener("resize", this.handleWindowResize);
 
@@ -908,6 +944,15 @@ export class ChatWidget {
 
   private handleWindowResize = (): void => {
     this.updateDimensions();
+  };
+
+  private handleMessagesScroll = (): void => {
+    if (!this.messageList) {
+      return;
+    }
+    const distance =
+      this.messageList.scrollHeight - this.messageList.scrollTop - this.messageList.clientHeight;
+    this.shouldAutoScroll = distance < 36;
   };
 
   private focusInput(): void {
@@ -926,14 +971,25 @@ export class ChatWidget {
     }
     this.inputField.style.height = "auto";
     const computed = window.getComputedStyle(this.inputField);
-    const borderOffset =
+    const padding =
+      parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom);
+    const border =
       parseFloat(computed.borderTopWidth) + parseFloat(computed.borderBottomWidth);
-    const maxHeight = parseFloat(computed.getPropertyValue("max-height"));
-    const newHeight = Math.min(this.inputField.scrollHeight + borderOffset, maxHeight || Infinity);
-    if (Math.abs(newHeight - this.lastTextareaHeight) > 1) {
-      this.inputField.style.height = `${newHeight}px`;
-      this.lastTextareaHeight = newHeight;
-    }
+    const lineHeight = parseFloat(computed.lineHeight) || 20;
+    const minHeightValue = parseFloat(computed.getPropertyValue("min-height"));
+    const minHeight = Number.isNaN(minHeightValue) || minHeightValue <= 0
+      ? lineHeight + padding + border
+      : minHeightValue;
+    const maxHeightValue = parseFloat(computed.getPropertyValue("max-height"));
+    const maxHeight =
+      Number.isNaN(maxHeightValue) || maxHeightValue <= 0 ? Infinity : maxHeightValue;
+
+    const scrollHeight = this.inputField.scrollHeight + border;
+    const clampedHeight = clamp(scrollHeight, minHeight, maxHeight);
+    this.inputField.style.overflowY = scrollHeight > maxHeight ? "auto" : "hidden";
+
+    this.inputField.style.height = `${clampedHeight}px`;
+    this.lastTextareaHeight = clampedHeight;
   }
 
   private handleInputKeyDown(event: KeyboardEvent): void {
@@ -950,6 +1006,7 @@ export class ChatWidget {
     }
     this.inputField.value = "";
     this.adjustTextareaHeight();
+    this.shouldAutoScroll = true;
     this.enqueueUserMessage(content);
     this.simulateAgentReply();
   }
@@ -960,7 +1017,7 @@ export class ChatWidget {
       content,
       timestamp: new Date(),
     };
-    this.addMessage(message);
+    this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
   }
 
   private enqueueAgentMessage(content: string, isInitial = false): void {
@@ -974,8 +1031,10 @@ export class ChatWidget {
       if (this.messageList) {
         this.messageList.innerHTML = "";
       }
+      this.shouldAutoScroll = true;
     }
-    this.addMessage(message);
+    const forceScroll = isInitial || this.shouldAutoScroll;
+    this.addMessage(message, { forceScroll, smooth: true, autoScroll: true });
   }
 
   private buildMessageElement(message: ChatMessage): {
@@ -1002,8 +1061,9 @@ export class ChatWidget {
 
   private appendMessageElement(
     message: ChatMessage,
-    scroll = true
+    options: { autoScroll?: boolean; forceScroll?: boolean; smooth?: boolean } = {}
   ): { wrapper: HTMLDivElement; bubble: HTMLDivElement; timestamp: HTMLSpanElement } | null {
+    const { autoScroll = true, forceScroll = false, smooth = true } = options;
     if (!this.messageList) {
       return null;
     }
@@ -1013,18 +1073,30 @@ export class ChatWidget {
 
     const elements = this.buildMessageElement(message);
     this.messageList.appendChild(elements.wrapper);
-    if (scroll) {
-      this.scrollToBottom({ smooth: true });
+    if (autoScroll) {
+      this.scrollToBottom({ smooth, force: forceScroll });
     }
     return elements;
   }
 
-  private scrollToBottom({ smooth = false }: { smooth?: boolean } = {}): void {
+  private scrollToBottom({
+    smooth = false,
+    force = false,
+  }: {
+    smooth?: boolean;
+    force?: boolean;
+  } = {}): void {
     if (!this.messageList) {
       return;
     }
+    if (!force && !this.shouldAutoScroll) {
+      return;
+    }
+    if (force) {
+      this.shouldAutoScroll = true;
+    }
     const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
-    window.requestAnimationFrame(() => {
+    const performScroll = (): void => {
       if (!this.messageList) {
         return;
       }
@@ -1033,7 +1105,13 @@ export class ChatWidget {
       } else {
         this.messageList.scrollTop = this.messageList.scrollHeight;
       }
-    });
+    };
+
+    performScroll();
+
+    if (smooth) {
+      window.requestAnimationFrame(performScroll);
+    }
   }
 
   private showTypingIndicator(): void {
@@ -1109,7 +1187,7 @@ export class ChatWidget {
     };
     this.messages.push(message);
 
-    const elements = this.appendMessageElement({ ...message, content: "" }, false);
+    const elements = this.appendMessageElement({ ...message, content: "" }, { autoScroll: false });
     if (!elements) {
       return;
     }

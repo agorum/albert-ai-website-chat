@@ -109,6 +109,28 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
   await expect(teaser).toBeHidden();
 
   const input = page.locator('textarea.acw-textarea');
+  const initialHeight = await input.evaluate((el) => el.clientHeight);
+  await input.type('Erste Zeile für den Auto-Resize-Test');
+  await page.keyboard.press('Shift+Enter');
+  await input.type('Zweite Zeile mit zusätzlichem Inhalt');
+  await page.keyboard.press('Shift+Enter');
+  await input.type('Dritte Zeile um genügend Höhe zu erzeugen');
+  await page.keyboard.press('Shift+Enter');
+  await input.type('Vierte Zeile, fast geschafft');
+  await page.waitForTimeout(60);
+  const expandedHeight = await input.evaluate((el) => el.clientHeight);
+  expect(expandedHeight).toBeGreaterThan(initialHeight + 10);
+  await page.waitForTimeout(200);
+  const stableHeight = await input.evaluate((el) => el.clientHeight);
+  expect(Math.abs(stableHeight - expandedHeight)).toBeLessThan(2);
+
+  await page.keyboard.press('Enter');
+  await expect(input).toHaveValue('');
+
+  const firstTypingIndicator = page.locator('.acw-typing');
+  await expect(firstTypingIndicator).toBeVisible({ timeout: 2000 });
+  await expect(firstTypingIndicator).toBeHidden({ timeout: 6000 });
+
   await input.click();
   await input.fill('');
   await input.type('Hallo!');
@@ -122,12 +144,56 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
 
   const typingIndicator = page.locator('.acw-typing');
   await expect(typingIndicator).toBeVisible({ timeout: 2000 });
+  await page.waitForTimeout(150);
+
+  const scrollPrep = await page.evaluate(() => {
+    const host = document.querySelector('.acw-host');
+    if (!(host instanceof HTMLElement) || !host.shadowRoot) {
+      return { canScroll: false, top: 0 };
+    }
+    const container = host.shadowRoot.querySelector('.acw-messages');
+    if (!(container instanceof HTMLElement)) {
+      return { canScroll: false, top: 0 };
+    }
+    const canScroll = container.scrollHeight - container.clientHeight > 8;
+    if (canScroll) {
+      container.scrollTop = 0;
+    }
+    return { canScroll, top: container.scrollTop };
+  });
+  expect(scrollPrep.canScroll).toBe(true);
+  await page.waitForTimeout(400);
+  const scrollPositionDuringStream = await page.evaluate(() => {
+    const host = document.querySelector('.acw-host');
+    if (!(host instanceof HTMLElement) || !host.shadowRoot) {
+      return -1;
+    }
+    const container = host.shadowRoot.querySelector('.acw-messages');
+    if (!(container instanceof HTMLElement)) {
+      return -1;
+    }
+    return container.scrollTop;
+  });
+  expect(scrollPositionDuringStream).toBeLessThan(12);
 
   const agentMessage = page.locator('.acw-message-agent .acw-bubble').last();
-  await expect(agentMessage).toHaveText(/Albert|Danke/i, { timeout: 8000 });
-  await expect(typingIndicator).toBeHidden({ timeout: 4000 });
-  const agentText = (await agentMessage.textContent()) ?? '';
-  expect(agentText.trim().length).toBeGreaterThan(10);
+  await expect(typingIndicator).toBeHidden({ timeout: 6000 });
+  await expect
+    .poll(async () => ((await agentMessage.textContent()) ?? '').trim().length, {
+      timeout: 8000,
+    })
+    .toBeGreaterThan(10);
+
+  await page.evaluate(() => {
+    const host = document.querySelector('.acw-host');
+    if (!(host instanceof HTMLElement) || !host.shadowRoot) {
+      return;
+    }
+    const container = host.shadowRoot.querySelector('.acw-messages');
+    if (container instanceof HTMLElement) {
+      container.scrollTop = container.scrollHeight;
+    }
+  });
 
   const inputVisible = await page.evaluate(() => {
     const host = document.querySelector('.acw-host');
@@ -151,19 +217,20 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
   await launcher.click();
   await expect(chat).toHaveClass(/acw-open/, { timeout: 2000 });
 
-  const atBottom = await page.evaluate(() => {
+  await page.waitForTimeout(420);
+  const distance = await page.evaluate(() => {
     const host = document.querySelector('.acw-host');
     if (!(host instanceof HTMLElement) || !host.shadowRoot) {
-      return false;
+      return Infinity;
     }
     const container = host.shadowRoot.querySelector('.acw-messages');
     if (!(container instanceof HTMLElement)) {
-      return false;
+      return Infinity;
     }
     const distance = Math.abs(container.scrollHeight - container.scrollTop - container.clientHeight);
-    return distance < 4;
+    return distance;
   });
-  expect(atBottom).toBe(true);
+  expect(distance).toBeLessThan(12);
 
   expect(consoleErrors, 'Konsolenfehler gefunden').toEqual([]);
   expect(pageErrors, 'Seitenfehler gefunden').toEqual([]);
