@@ -51,23 +51,78 @@
     <script>
       window.addEventListener('DOMContentLoaded', () => {
         AlbertChat.init({
+          target: document.body,
+          theme: {
+            fontFamily: "'Inter', system-ui, sans-serif",
+            primaryColor: '#0ea5e9',
+            secondaryColor: '#0284c7',
+            surfaceColor: '#ffffff',
+            surfaceAccentColor: '#f0f9ff',
+            textColor: '#0f172a',
+            userMessageColor: '#0284c7',
+            userTextColor: '#ffffff',
+            agentMessageColor: '#e0f2fe',
+            agentTextColor: '#0f172a',
+            launcherBackground: '#0ea5e9',
+            launcherTextColor: '#ffffff',
+            sendButtonBackground: '#0ea5e9',
+            sendButtonTextColor: '#ffffff',
+            borderColor: '#dbeafe',
+            shadowColor: 'rgba(14, 165, 233, 0.25)',
+          },
           texts: {
             launcherLabel: 'Frag Albert',
-            headerTitle: 'Albert AI',
-            headerSubtitle: 'Jetzt Fragen stellen',
+            launcherAriaLabel: 'Albert Chat öffnen',
             teaserText: '👋 Benötigen Sie Unterstützung?',
+            headerTitle: 'Albert AI Assistent',
+            headerSubtitle: 'Wir helfen gerne weiter',
+            placeholder: 'Ihre Nachricht ... (Shift + Enter für Zeilenumbruch)',
+            sendButtonLabel: 'Senden',
+            closeLabel: 'Fenster schließen',
+            reloadLabel: 'Neu starten',
+            emptyState: 'Noch keine Nachrichten vorhanden.',
+            initialMessage: 'Hallo! Schön, dass Sie da sind. Welche Frage kann ich beantworten?',
+            consentPrompt:
+              'Bevor wir beginnen, lesen Sie bitte unsere Datenschutzhinweise und bestätigen Ihre Zustimmung.',
+            consentAcceptLabel: 'Zustimmen',
+            consentDeclineLabel: 'Ablehnen',
+            consentDeclinedMessage:
+              'Ohne Zustimmung zu unseren Datenschutzhinweisen ist der Chat leider nicht verfügbar.',
+            consentPendingPlaceholder: 'Bitte stimmen Sie der Datenschutzerklärung zu, um den Chat zu starten.',
+            consentDeclinedPlaceholder: 'Chat deaktiviert – starten Sie neu, um es erneut zu versuchen.',
+            sendWhileStreamingTooltip: 'Bitte warten, bis die aktuelle Antwort vollständig ist.',
+            sendWhileConsentPendingTooltip:
+              'Sie können erst senden, nachdem Sie der Datenschutzerklärung zugestimmt haben.',
+            sendWhileTerminatedTooltip:
+              'Der Chat ist deaktiviert. Starten Sie ihn neu, um eine neue Sitzung zu beginnen.',
           },
-          theme: {
-            primaryColor: '#2563eb',
-            launcherBackground: '#2563eb',
-            userMessageColor: '#1d4ed8',
-            agentMessageColor: '#e0f2fe',
+          icons: {
+            headerIcon: '🤖',
+            closeIcon: '✖',
+            reloadIcon: '⟳',
+            launcherIcon: '💬',
+            sendIcon: '➤',
           },
           footerLinks: [
             { label: 'Datenschutz', href: 'https://example.com/datenschutz', target: '_blank' },
             { label: 'Impressum', href: 'https://example.com/impressum', target: '_blank' },
           ],
-          teaserDelayMs: 4000,
+          dimensions: {
+            widthPercent: 32,
+            minWidthPx: 320,
+            heightPercent: 70,
+            minHeightPx: 420,
+          },
+          teaserDelayMs: 3500,
+          mockResponses: [
+            'Danke für Ihre Frage – ich prüfe das sofort.',
+            'Hier sind die wichtigsten Punkte, die ich gefunden habe.',
+            'Benötigen Sie weitere Details oder darf ich etwas anderes für Sie tun?',
+          ],
+          mockResponseDelayMs: [900, 1800],
+          zIndex: 12000,
+          locale: 'de-DE',
+          requirePrivacyConsent: true,
         });
       });
     </script>

@@ -490,6 +490,11 @@ export class ChatWidget {
       this.inputField.value = "";
       this.inputField.style.height = "";
       this.lastTextareaHeight = 0;
+      if (placeholder) {
+        this.inputField.value = placeholder;
+        this.adjustTextareaHeight();
+        this.inputField.value = "";
+      }
     } else {
       this.adjustTextareaHeight();
     }
@@ -834,10 +839,12 @@ export class ChatWidget {
         justify-content: center;
       }
       .acw-footer-links {
-        padding: 0 var(--acw-spacing-md) var(--acw-spacing-md);
+        padding: var(--acw-spacing-sm) var(--acw-spacing-md);
         display: flex;
         flex-wrap: wrap;
-        gap: var(--acw-spacing-xs);
+        justify-content: center;
+        align-items: center;
+        gap: var(--acw-spacing-sm);
         border-top: 1px solid var(--acw-border-color);
         background: var(--acw-surface-accent);
       }
