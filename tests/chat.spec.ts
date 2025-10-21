@@ -108,7 +108,24 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
   await expect(chat).toHaveClass(/acw-open/, { timeout: 2000 });
   await expect(teaser).toBeHidden();
 
+  const sendButton = page.locator('.acw-send-button');
+  await expect(sendButton).toBeDisabled();
+  await expect(sendButton).toHaveAttribute(
+    'title',
+    'Senden ist erst möglich, nachdem Sie der Datenschutzerklärung zugestimmt haben.'
+  );
+
   const input = page.locator('textarea.acw-textarea');
+  await expect(input).toBeDisabled();
+
+  const consent = page.locator('.acw-consent');
+  await expect(consent).toBeVisible();
+  await page.locator('.acw-consent-accept').click();
+  await expect(consent).toBeHidden();
+  await expect(input).toBeEnabled();
+  await expect(sendButton).toBeEnabled();
+  await expect(sendButton).toHaveAttribute('title', 'Senden');
+
   const initialHeight = await input.evaluate((el) => el.clientHeight);
   await input.type('Erste Zeile für den Auto-Resize-Test');
   await page.keyboard.press('Shift+Enter');
@@ -136,6 +153,8 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
   await input.type('Hallo!');
   await page.keyboard.press('Backspace');
   await expect(input).toHaveValue('Hallo');
+  await expect(sendButton).toBeEnabled();
+  await expect(sendButton).toHaveAttribute('title', 'Senden');
   await page.keyboard.press('Enter');
   await expect(input).toHaveValue('');
 
@@ -145,6 +164,11 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
   const typingIndicator = page.locator('.acw-typing');
   await expect(typingIndicator).toBeVisible({ timeout: 2000 });
   await page.waitForTimeout(150);
+  await expect(sendButton).toBeDisabled();
+  await expect(sendButton).toHaveAttribute(
+    'title',
+    'Bitte warten Sie, bis die Antwort abgeschlossen ist.'
+  );
 
   const scrollPrep = await page.evaluate(() => {
     const host = document.querySelector('.acw-host');
@@ -183,6 +207,9 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
       timeout: 8000,
     })
     .toBeGreaterThan(10);
+
+  await expect(sendButton).toBeEnabled();
+  await expect(sendButton).toHaveAttribute('title', 'Senden');
 
   await page.evaluate(() => {
     const host = document.querySelector('.acw-host');
@@ -234,4 +261,36 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
 
   expect(consoleErrors, 'Konsolenfehler gefunden').toEqual([]);
   expect(pageErrors, 'Seitenfehler gefunden').toEqual([]);
+});
+
+test('Datenschutz-Ablehnung deaktiviert den Chat', async ({ page }) => {
+  await page.goto('http://localhost:8080/index.html');
+
+  const launcher = page.locator('.acw-launcher');
+  await expect(launcher).toBeVisible();
+  await launcher.click();
+
+  const consent = page.locator('.acw-consent');
+  await expect(consent).toBeVisible();
+  await page.locator('.acw-consent-decline').click();
+  await expect(consent).toBeHidden();
+
+  const declineMessage = page.locator('.acw-message-agent .acw-bubble').last();
+  await expect(declineMessage).toHaveText(
+    'Ohne Zustimmung zu unserer Datenschutzerklärung kann der Chat leider nicht genutzt werden.'
+  );
+
+  const input = page.locator('textarea.acw-textarea');
+  await expect(input).toBeDisabled();
+  await expect(await input.getAttribute('placeholder')).toContain('Chat deaktiviert');
+
+  const sendButton = page.locator('.acw-send-button');
+  await expect(sendButton).toBeDisabled();
+  await expect(sendButton).toHaveAttribute(
+    'title',
+    'Der Chat ist deaktiviert. Starten Sie ihn neu, um es erneut zu versuchen.'
+  );
+
+  await page.getByRole('button', { name: 'Neu starten' }).click();
+  await expect(page.locator('.acw-consent')).toBeVisible();
 });

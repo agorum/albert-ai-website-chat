@@ -11,6 +11,7 @@ Eine konfigurierbare Chat-Widget-Lösung, die sich per Script-Tag in beliebige W
 - Scrollbarer Nachrichtenbereich mit voneinander unterscheidbaren Nutzer-/Agent-Bubbles
 - Eingabebereich mit automatischer Größenanpassung (max. 5 Zeilen), Enter zum Senden, Button daneben
 - Simulierter Agent mit Tipp-Indikator und gestreamten Antworten nach zufälligen Verzögerungen
+- Optionale Datenschutzabfrage vor dem ersten Nachrichtenaustausch (abschaltbar und frei konfigurierbar)
 - Typdefinitionen und ESM/IIFE-Bundles für einfache Integration in Build- oder klassische Umgebungen
 
 ## Installation
@@ -120,6 +121,15 @@ interface ChatWidgetOptions {
     reloadLabel: string;
     emptyState: string;
     initialMessage: string;
+    consentPrompt: string;
+    consentAcceptLabel: string;
+    consentDeclineLabel: string;
+    consentDeclinedMessage: string;
+    consentPendingPlaceholder: string;
+    consentDeclinedPlaceholder: string;
+    sendWhileStreamingTooltip: string;
+    sendWhileConsentPendingTooltip: string;
+    sendWhileTerminatedTooltip: string;
   };
   icons: {
     headerIcon: string;
@@ -140,6 +150,7 @@ interface ChatWidgetOptions {
   mockResponseDelayMs: [number, number];
   zIndex: number;
   locale: string;
+  requirePrivacyConsent: boolean;
 }
 ```
 

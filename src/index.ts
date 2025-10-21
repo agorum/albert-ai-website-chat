@@ -46,6 +46,15 @@ export interface ChatWidgetTexts {
   reloadLabel: string;
   emptyState: string;
   initialMessage: string;
+  consentPrompt: string;
+  consentAcceptLabel: string;
+  consentDeclineLabel: string;
+  consentDeclinedMessage: string;
+  consentPendingPlaceholder: string;
+  consentDeclinedPlaceholder: string;
+  sendWhileStreamingTooltip: string;
+  sendWhileConsentPendingTooltip: string;
+  sendWhileTerminatedTooltip: string;
 }
 
 export interface ChatWidgetIcons {
@@ -75,6 +84,7 @@ export interface ChatWidgetOptions {
   mockResponseDelayMs: [number, number];
   zIndex: number;
   locale: string;
+  requirePrivacyConsent: boolean;
 }
 
 export interface ChatMessage {
@@ -122,6 +132,18 @@ const defaultOptions: ChatWidgetOptions = {
     reloadLabel: "Neu starten",
     emptyState: "Noch keine Nachrichten.",
     initialMessage: "Hallo! Ich bin Albert. Wie kann ich Ihnen heute weiterhelfen?",
+    consentPrompt:
+      "Bitte stimmen Sie unserer Datenschutzerklärung zu, damit wir den Chat starten können.",
+    consentAcceptLabel: "Zustimmen",
+    consentDeclineLabel: "Ablehnen",
+    consentDeclinedMessage:
+      "Ohne Zustimmung zu unserer Datenschutzerklärung kann der Chat leider nicht genutzt werden.",
+    consentPendingPlaceholder: "Bitte stimmen Sie zunächst der Datenschutzerklärung zu.",
+    consentDeclinedPlaceholder: "Chat deaktiviert. Starten Sie neu, um es erneut zu versuchen.",
+    sendWhileStreamingTooltip: "Bitte warten Sie, bis die Antwort abgeschlossen ist.",
+    sendWhileConsentPendingTooltip:
+      "Senden ist erst möglich, nachdem Sie der Datenschutzerklärung zugestimmt haben.",
+    sendWhileTerminatedTooltip: "Der Chat ist deaktiviert. Starten Sie ihn neu, um es erneut zu versuchen.",
   },
   icons: {
     headerIcon: "💡",
@@ -150,6 +172,7 @@ const defaultOptions: ChatWidgetOptions = {
   mockResponseDelayMs: [1200, 2500],
   zIndex: 9999,
   locale: typeof navigator !== "undefined" ? navigator.language : "de-DE",
+  requirePrivacyConsent: true,
 };
 
 let widgetInstanceCounter = 0;
@@ -230,11 +253,18 @@ export class ChatWidget {
   private streamingMessageTimestamp?: HTMLSpanElement;
   private streamingMessageWrapper?: HTMLDivElement;
   private currentStreamingMessage?: ChatMessage;
+  private isAwaitingAgent = false;
+  private isConsentGranted: boolean;
+  private isTerminated = false;
+  private consentPromptElement?: HTMLDivElement;
+  private defaultPlaceholder: string;
   private shouldAutoScroll = true;
 
   constructor(options: DeepPartial<ChatWidgetOptions> = {}) {
     this.options = deepMerge(defaultOptions, options);
     this.instanceId = ++widgetInstanceCounter;
+    this.defaultPlaceholder = this.options.texts.placeholder;
+    this.isConsentGranted = !this.options.requirePrivacyConsent;
   }
 
   mount(): void {
@@ -272,6 +302,7 @@ export class ChatWidget {
     if (this.messageList) {
       this.messageList.removeEventListener("scroll", this.handleMessagesScroll);
     }
+    this.removeConsentPrompt();
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = undefined;
@@ -319,16 +350,193 @@ export class ChatWidget {
     this.clearStreamingTimers();
     this.hideTypingIndicator();
     this.shouldAutoScroll = true;
+    this.isAwaitingAgent = false;
+    this.isTerminated = false;
+    this.isConsentGranted = !this.options.requirePrivacyConsent;
     this.messages = [];
+    this.mockResponseIndex = 0;
     if (this.messageList) {
       this.messageList.innerHTML = "";
-      const emptyState = document.createElement("div");
-      emptyState.className = "acw-empty-state";
-      emptyState.textContent = this.options.texts.emptyState;
-      this.messageList.appendChild(emptyState);
     }
-    this.mockResponseIndex = 0;
-    this.enqueueAgentMessage(this.options.texts.initialMessage, true);
+    this.renderInitialState();
+  }
+
+  private renderInitialState(): void {
+    if (!this.messageList) {
+      return;
+    }
+    this.removeConsentPrompt();
+    if (this.options.requirePrivacyConsent && !this.isConsentGranted) {
+      this.renderConsentPrompt();
+      this.setInputDisabled(true, this.options.texts.consentPendingPlaceholder);
+    } else if (!this.isTerminated) {
+      this.setInputDisabled(false, this.defaultPlaceholder);
+      if (!this.messages.length) {
+        this.addMessage(
+          {
+            role: "agent",
+            content: this.options.texts.initialMessage,
+            timestamp: new Date(),
+          },
+          { forceScroll: true, smooth: true, autoScroll: true }
+        );
+      }
+    }
+    this.updateSendAvailability();
+  }
+
+  private renderConsentPrompt(): void {
+    if (!this.messageList) {
+      return;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "acw-message acw-message-agent acw-consent";
+
+    const bubble = document.createElement("div");
+    bubble.className = "acw-bubble acw-consent-bubble";
+
+    const text = document.createElement("p");
+    text.className = "acw-consent-text";
+    text.textContent = this.options.texts.consentPrompt;
+    bubble.appendChild(text);
+
+    const actions = document.createElement("div");
+    actions.className = "acw-consent-actions";
+
+    const acceptButton = document.createElement("button");
+    acceptButton.type = "button";
+    acceptButton.className = "acw-consent-button acw-consent-accept";
+    acceptButton.textContent = this.options.texts.consentAcceptLabel;
+    acceptButton.addEventListener("click", this.handleConsentAccept);
+
+    const declineButton = document.createElement("button");
+    declineButton.type = "button";
+    declineButton.className = "acw-consent-button acw-consent-decline";
+    declineButton.textContent = this.options.texts.consentDeclineLabel;
+    declineButton.addEventListener("click", this.handleConsentDecline);
+
+    actions.appendChild(acceptButton);
+    actions.appendChild(declineButton);
+    bubble.appendChild(actions);
+    wrapper.appendChild(bubble);
+
+    this.messageList.appendChild(wrapper);
+    this.consentPromptElement = wrapper;
+    this.scrollToBottom({ force: true });
+  }
+
+  private removeConsentPrompt(): void {
+    if (this.consentPromptElement) {
+      this.consentPromptElement.remove();
+      this.consentPromptElement = undefined;
+    }
+  }
+
+  private handleConsentAccept = (): void => {
+    if (this.isTerminated) {
+      return;
+    }
+    this.isConsentGranted = true;
+    this.removeConsentPrompt();
+    this.setInputDisabled(false, this.defaultPlaceholder);
+    if (!this.messages.length) {
+      this.shouldAutoScroll = true;
+      this.addMessage(
+        {
+          role: "agent",
+          content: this.options.texts.initialMessage,
+          timestamp: new Date(),
+        },
+        { forceScroll: true, smooth: true, autoScroll: true }
+      );
+    }
+    this.updateSendAvailability();
+    this.focusInput();
+  };
+
+  private handleConsentDecline = (): void => {
+    if (this.isTerminated) {
+      return;
+    }
+    this.isConsentGranted = false;
+    this.isTerminated = true;
+    this.removeConsentPrompt();
+    this.setInputDisabled(true, this.options.texts.consentDeclinedPlaceholder);
+    this.shouldAutoScroll = true;
+    this.addMessage(
+      {
+        role: "agent",
+        content: this.options.texts.consentDeclinedMessage,
+        timestamp: new Date(),
+      },
+      { forceScroll: true, smooth: true, autoScroll: true }
+    );
+    this.updateSendAvailability();
+  };
+
+  private setInputDisabled(disabled: boolean, placeholder?: string): void {
+    if (!this.inputField) {
+      return;
+    }
+    this.inputField.disabled = disabled;
+    this.inputField.setAttribute("aria-disabled", disabled ? "true" : "false");
+    if (placeholder !== undefined) {
+      this.inputField.placeholder = placeholder;
+    } else if (!disabled) {
+      this.inputField.placeholder = this.defaultPlaceholder;
+    }
+    if (disabled) {
+      this.inputField.value = "";
+      this.inputField.style.height = "";
+      this.lastTextareaHeight = 0;
+    } else {
+      this.adjustTextareaHeight();
+    }
+  }
+
+  private canSendMessage(): boolean {
+    if (!this.inputField || this.inputField.disabled) {
+      return false;
+    }
+    if (!this.isConsentGranted || this.isTerminated) {
+      return false;
+    }
+    if (this.isAwaitingAgent) {
+      return false;
+    }
+    return true;
+  }
+
+  private updateSendAvailability(): void {
+    if (!this.sendButton) {
+      return;
+    }
+    const canSend = this.canSendMessage() && !!this.inputField && !this.inputField.disabled;
+    const reason = this.isTerminated
+      ? "terminated"
+      : !this.isConsentGranted
+      ? "consent"
+      : this.isAwaitingAgent
+      ? "streaming"
+      : "";
+
+    let tooltip = this.options.texts.sendButtonLabel;
+    if (!canSend) {
+      if (reason === "consent") {
+        tooltip = this.options.texts.sendWhileConsentPendingTooltip;
+      } else if (reason === "terminated") {
+        tooltip = this.options.texts.sendWhileTerminatedTooltip;
+      } else if (reason === "streaming") {
+        tooltip = this.options.texts.sendWhileStreamingTooltip;
+      } else {
+        tooltip = this.options.texts.sendWhileStreamingTooltip;
+      }
+    }
+
+    this.sendButton.disabled = !canSend;
+    this.sendButton.setAttribute("aria-disabled", canSend ? "false" : "true");
+    this.sendButton.title = tooltip;
   }
 
   addMessage(
@@ -725,6 +933,52 @@ export class ChatWidget {
       .acw-typing-dot:nth-child(3) {
         animation-delay: 0.4s;
       }
+      .acw-consent {
+        align-self: stretch;
+      }
+      .acw-consent-bubble {
+        display: flex;
+        flex-direction: column;
+        gap: var(--acw-spacing-sm);
+      }
+      .acw-consent-text {
+        margin: 0;
+        line-height: 1.55;
+      }
+      .acw-consent-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--acw-spacing-sm);
+      }
+      .acw-consent-button {
+        appearance: none;
+        border-radius: var(--acw-radius-md);
+        padding: 8px 16px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+      }
+      .acw-consent-button:focus-visible {
+        outline: 2px solid var(--acw-primary-color);
+        outline-offset: 2px;
+      }
+      .acw-consent-accept {
+        background: var(--acw-primary-color);
+        color: var(--acw-user-text-color);
+      }
+      .acw-consent-accept:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.2);
+      }
+      .acw-consent-decline {
+        background: transparent;
+        color: var(--acw-primary-color);
+        border-color: rgba(37, 99, 235, 0.4);
+      }
+      .acw-consent-decline:hover {
+        background: rgba(37, 99, 235, 0.08);
+      }
       @keyframes acw-typing-bounce {
         0%, 80%, 100% {
           transform: translateY(0);
@@ -959,6 +1213,9 @@ export class ChatWidget {
     if (!this.inputField) {
       return;
     }
+    if (this.inputField.disabled) {
+      return;
+    }
     window.setTimeout(() => {
       this.inputField.focus({ preventScroll: false });
       this.adjustTextareaHeight();
@@ -994,12 +1251,18 @@ export class ChatWidget {
 
   private handleInputKeyDown(event: KeyboardEvent): void {
     if (event.key === "Enter" && !event.shiftKey) {
+      if (!this.canSendMessage()) {
+        return;
+      }
       event.preventDefault();
       this.handleSend();
     }
   }
 
   private handleSend(): void {
+    if (!this.canSendMessage()) {
+      return;
+    }
     const content = this.inputField.value.trim();
     if (!content) {
       return;
@@ -1172,6 +1435,10 @@ export class ChatWidget {
     this.streamingMessageBubble = undefined;
     this.streamingMessageTimestamp = undefined;
     this.streamingMessageWrapper = undefined;
+    if (this.isAwaitingAgent) {
+      this.isAwaitingAgent = false;
+      this.updateSendAvailability();
+    }
   }
 
   private streamAgentMessage(content: string): void {
@@ -1224,10 +1491,14 @@ export class ChatWidget {
 
   private simulateAgentReply(): void {
     if (!this.options.mockResponses.length) {
+      this.isAwaitingAgent = false;
+      this.updateSendAvailability();
       return;
     }
     this.hideTypingIndicator();
     this.clearStreamingTimers({ finalize: true });
+    this.isAwaitingAgent = true;
+    this.updateSendAvailability();
 
     this.showTypingIndicator();
     const [minDelay, maxDelay] = this.options.mockResponseDelayMs;
