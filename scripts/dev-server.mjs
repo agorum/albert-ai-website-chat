@@ -6,6 +6,8 @@ import { URL } from 'node:url';
 
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_DIR = resolve(process.argv[2] || 'examples');
+const PROJECT_ROOT = resolve(PUBLIC_DIR, '..');
+const DIST_DIR = resolve(PROJECT_ROOT, 'dist');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -31,6 +33,26 @@ function sendError(res, error) {
   res.end(`500 – Fehler: ${error.message}`);
 }
 
+function trySendFile(res, filePath, fallbackPath) {
+  const candidate = fallbackPath ?? filePath;
+  stat(candidate, (err, stats) => {
+    if (err || !stats.isFile()) {
+      if (fallbackPath === undefined) {
+        sendNotFound(res);
+        return;
+      }
+      trySendFile(res, fallbackPath);
+      return;
+    }
+    const ext = extname(candidate).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType });
+    const stream = createReadStream(candidate);
+    stream.on('error', (streamError) => sendError(res, streamError));
+    stream.pipe(res);
+  });
+}
+
 const server = createServer((req, res) => {
   if (!req.url) {
     sendNotFound(res);
@@ -44,20 +66,18 @@ const server = createServer((req, res) => {
     pathname += 'index.html';
   }
 
-  const filePath = join(PUBLIC_DIR, decodeURIComponent(pathname));
-  stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      sendNotFound(res);
-      return;
-    }
+  const decodedPath = decodeURIComponent(pathname).replace(/^\/+/, '');
+  if (decodedPath.includes('..')) {
+    sendNotFound(res);
+    return;
+  }
 
-    const ext = extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': contentType });
-    const stream = createReadStream(filePath);
-    stream.on('error', (streamError) => sendError(res, streamError));
-    stream.pipe(res);
-  });
+  const requestedWithinDist = decodedPath.startsWith('dist/');
+
+  const primaryPath = join(PUBLIC_DIR, decodedPath);
+  const fallbackPath = requestedWithinDist ? resolve(DIST_DIR, decodedPath.slice('dist/'.length)) : undefined;
+
+  trySendFile(res, primaryPath, fallbackPath);
 });
 
 server.listen(PORT, () => {

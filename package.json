@@ -5,16 +5,23 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "playwright test",
+    "test:e2e": "playwright test"
   },
-  "dependencies": {},
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "tsup": "^8.0.1",
     "typescript": "^5.4.5"
   },
   "tsup": {
-    "entry": ["src/index.ts"],
-    "format": ["esm", "iife"],
+    "entry": [
+      "src/index.ts"
+    ],
+    "format": [
+      "esm",
+      "iife"
+    ],
     "sourcemap": true,
     "dts": true,
     "minify": true,

@@ -18,6 +18,7 @@ Eine konfigurierbare Chat-Widget-Lösung, die sich per Script-Tag in beliebige W
 ```bash
 npm install
 npm run build
+npm test          # optional: End-to-End-Test mit Playwright
 ```
 
 `dist/index.js` enthält das ESM-Bundle, `dist/index.global.js` das IIFE-Bundle für direkte Nutzung über ein Script-Tag.
@@ -151,3 +152,12 @@ interface ChatWidgetOptions {
 - Optional: Typing-Indikatoren, Offline-State oder Lokalisierung über mehrere Sprachpakete
 
 Viel Erfolg beim Einbinden! Bei Fragen gerne melden.
+
+## Lokaler Testserver
+
+```bash
+npm run build
+./start.sh
+```
+
+Anschließend steht die Demo unter `http://localhost:8080/index.html` bereit. Der Server akzeptiert auch andere Verzeichnisse als Argument (z. B. `./start.sh public`).
