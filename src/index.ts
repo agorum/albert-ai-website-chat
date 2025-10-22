@@ -233,6 +233,7 @@ export class ChatWidget {
   private launcherButton!: HTMLButtonElement;
   private teaserBubble!: HTMLButtonElement;
   private messageList!: HTMLDivElement;
+  private inputArea!: HTMLDivElement;
   private inputField!: HTMLTextAreaElement;
   private sendButton!: HTMLButtonElement;
   private closeButton!: HTMLButtonElement;
@@ -424,6 +425,9 @@ export class ChatWidget {
     this.messageList.appendChild(wrapper);
     this.consentPromptElement = wrapper;
     this.scrollToBottom({ force: true });
+    if (this.inputArea) {
+      this.inputArea.classList.add("acw-hidden");
+    }
   }
 
   private removeConsentPrompt(): void {
@@ -453,6 +457,9 @@ export class ChatWidget {
     }
     this.updateSendAvailability();
     this.focusInput();
+    if (this.inputArea) {
+      this.inputArea.classList.remove("acw-hidden");
+    }
   };
 
   private handleConsentDecline = (): void => {
@@ -473,6 +480,9 @@ export class ChatWidget {
       { forceScroll: true, smooth: true, autoScroll: true }
     );
     this.updateSendAvailability();
+    if (this.inputArea) {
+      this.inputArea.classList.add("acw-hidden");
+    }
   };
 
   private setInputDisabled(disabled: boolean, placeholder?: string): void {
@@ -838,6 +848,9 @@ export class ChatWidget {
         align-items: center;
         justify-content: center;
       }
+      .acw-input-area.acw-hidden {
+        display: none !important;
+      }
       .acw-footer-links {
         padding: var(--acw-spacing-sm) var(--acw-spacing-md);
         display: flex;
@@ -1123,6 +1136,7 @@ export class ChatWidget {
     row.appendChild(this.sendButton);
 
     wrapper.appendChild(row);
+    wrapper.style.display = "flex";
 
     return wrapper;
   }
