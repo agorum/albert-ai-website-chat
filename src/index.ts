@@ -257,6 +257,7 @@ export class ChatWidget {
   private isTerminated = false;
   private consentPromptElement?: HTMLDivElement;
   private shouldAutoScroll = true;
+  private readonly inputPlaceholder = "Ihre Nachricht …";
 
   constructor(options: DeepPartial<ChatWidgetOptions> = {}) {
     this.options = deepMerge(defaultOptions, options);
@@ -483,6 +484,8 @@ export class ChatWidget {
     this.inputField.setAttribute("aria-disabled", disabled ? "true" : "false");
     if (placeholder !== undefined) {
       this.inputField.placeholder = placeholder;
+    } else if (!disabled) {
+      this.inputField.placeholder = this.inputPlaceholder;
     }
     if (disabled) {
       this.inputField.value = "";
@@ -503,9 +506,6 @@ export class ChatWidget {
       this.inputArea.classList.remove("acw-hidden");
     }
     this.setInputDisabled(false);
-    if (this.inputField) {
-      this.inputField.placeholder = "";
-    }
   }
 
   private hideInputArea(placeholder?: string): void {

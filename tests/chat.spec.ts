@@ -116,15 +116,18 @@ test('Chat-Widget wird geladen und wirft keine Konsolenfehler', async ({ page })
   );
 
   const input = page.locator('textarea.acw-textarea');
-  await expect(input).toBeDisabled();
+  const inputArea = page.locator('.acw-input-area');
+  await expect(inputArea).toBeHidden();
 
   const consent = page.locator('.acw-consent');
   await expect(consent).toBeVisible();
   await page.locator('.acw-consent-accept').click();
   await expect(consent).toBeHidden();
-  await expect(input).toBeEnabled();
+  await expect(inputArea).toBeVisible();
+  await expect(input).toBeVisible();
   await expect(sendButton).toBeEnabled();
   await expect(sendButton).toHaveAttribute('title', 'Senden');
+  await expect(input).toHaveAttribute('placeholder', 'Ihre Nachricht …');
 
   const initialHeight = await input.evaluate((el) => el.clientHeight);
   await input.type('Erste Zeile für den Auto-Resize-Test');
@@ -281,7 +284,8 @@ test('Datenschutz-Ablehnung deaktiviert den Chat', async ({ page }) => {
   );
 
   const input = page.locator('textarea.acw-textarea');
-  await expect(input).toBeDisabled();
+  const inputArea = page.locator('.acw-input-area');
+  await expect(inputArea).toBeHidden();
   await expect(await input.getAttribute('placeholder')).toContain('Chat deaktiviert');
 
   const sendButton = page.locator('.acw-send-button');
