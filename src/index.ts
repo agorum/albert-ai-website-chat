@@ -471,9 +471,6 @@ export class ChatWidget {
       { forceScroll: true, smooth: true, autoScroll: true }
     );
     this.updateSendAvailability();
-    if (this.inputArea) {
-      this.inputArea.classList.add("acw-hidden");
-    }
   };
 
   private setInputDisabled(disabled: boolean, placeholder?: string): void {
@@ -513,6 +510,44 @@ export class ChatWidget {
       this.inputArea.classList.add("acw-hidden");
     }
     this.setInputDisabled(true, placeholder);
+  }
+
+  private isSvgIcon(icon: string): boolean {
+    const value = icon.trim();
+    if (!value) {
+      return false;
+    }
+    if (/^data:image\/svg\+xml/i.test(value)) {
+      return true;
+    }
+    if (/\.svg(\?.*)?$/i.test(value)) {
+      return true;
+    }
+    if (/^(https?:)?\/.+/i.test(value)) {
+      return /\.svg(\?.*)?$/i.test(value);
+    }
+    if (value.startsWith("./") || value.startsWith("../")) {
+      return /\.svg(\?.*)?$/i.test(value);
+    }
+    return false;
+  }
+
+  private createIconElement(icon: string, baseClass: string, altText = ""): HTMLElement {
+    const trimmed = icon.trim();
+    if (this.isSvgIcon(trimmed)) {
+      const img = document.createElement("img");
+      img.src = trimmed;
+      img.alt = altText;
+      img.draggable = false;
+      img.className = `${baseClass} acw-icon-img`.trim();
+      img.setAttribute("aria-hidden", "true");
+      return img;
+    }
+    const span = document.createElement("span");
+    span.className = baseClass;
+    span.textContent = trimmed;
+    span.setAttribute("aria-hidden", "true");
+    return span;
   }
 
   private canSendMessage(): boolean {
@@ -651,6 +686,9 @@ export class ChatWidget {
       }
       .acw-launcher-icon {
         font-size: 1.1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
       .acw-chat {
         position: relative;
@@ -689,6 +727,9 @@ export class ChatWidget {
       }
       .acw-header-icon {
         font-size: 1.3rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
       .acw-header-texts {
         display: flex;
@@ -852,6 +893,33 @@ export class ChatWidget {
         display: inline-flex;
         align-items: center;
         justify-content: center;
+      }
+      .acw-icon-button-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .acw-icon-img {
+        width: 1em;
+        height: 1em;
+        display: inline-block;
+        object-fit: contain;
+      }
+      .acw-header-icon.acw-icon-img {
+        width: 1.3rem;
+        height: 1.3rem;
+      }
+      .acw-launcher-icon.acw-icon-img {
+        width: 1.2rem;
+        height: 1.2rem;
+      }
+      .acw-send-icon.acw-icon-img {
+        width: 1.1rem;
+        height: 1.1rem;
+      }
+      .acw-icon-button-icon.acw-icon-img {
+        width: 1.05rem;
+        height: 1.05rem;
       }
       .acw-input-area.acw-hidden {
         display: none !important;
@@ -1071,9 +1139,7 @@ export class ChatWidget {
     const details = document.createElement("div");
     details.className = "acw-header-details";
 
-    const icon = document.createElement("span");
-    icon.className = "acw-header-icon";
-    icon.textContent = this.options.icons.headerIcon;
+    const icon = this.createIconElement(this.options.icons.headerIcon, "acw-header-icon");
     details.appendChild(icon);
 
     const texts = document.createElement("div");
@@ -1100,7 +1166,9 @@ export class ChatWidget {
     this.reloadButton.className = "acw-icon-button";
     this.reloadButton.setAttribute("aria-label", this.options.texts.reloadLabel);
     this.reloadButton.title = this.options.texts.reloadLabel;
-    this.reloadButton.textContent = this.options.icons.reloadIcon;
+    this.reloadButton.appendChild(
+      this.createIconElement(this.options.icons.reloadIcon, "acw-icon-button-icon")
+    );
     actions.appendChild(this.reloadButton);
 
     this.closeButton = document.createElement("button");
@@ -1108,7 +1176,9 @@ export class ChatWidget {
     this.closeButton.className = "acw-icon-button";
     this.closeButton.setAttribute("aria-label", this.options.texts.closeLabel);
     this.closeButton.title = this.options.texts.closeLabel;
-    this.closeButton.textContent = this.options.icons.closeIcon;
+    this.closeButton.appendChild(
+      this.createIconElement(this.options.icons.closeIcon, "acw-icon-button-icon")
+    );
     actions.appendChild(this.closeButton);
 
     header.appendChild(actions);
@@ -1134,9 +1204,11 @@ export class ChatWidget {
     this.sendButton = document.createElement("button");
     this.sendButton.type = "button";
     this.sendButton.className = "acw-send-button";
-    this.sendButton.innerHTML = `<span class="acw-send-icon">${this.options.icons.sendIcon}</span>`;
     this.sendButton.setAttribute("aria-label", this.options.texts.sendButtonLabel);
     this.sendButton.title = this.options.texts.sendButtonLabel;
+    this.sendButton.appendChild(
+      this.createIconElement(this.options.icons.sendIcon, "acw-send-icon")
+    );
 
     row.appendChild(this.sendButton);
 
@@ -1181,9 +1253,10 @@ export class ChatWidget {
     launcher.setAttribute("aria-controls", `acw-chat-${this.instanceId}`);
     launcher.setAttribute("aria-label", this.options.texts.launcherAriaLabel);
 
-    const iconWrapper = document.createElement("span");
-    iconWrapper.className = "acw-launcher-icon";
-    iconWrapper.textContent = this.options.icons.launcherIcon;
+    const iconWrapper = this.createIconElement(
+      this.options.icons.launcherIcon,
+      "acw-launcher-icon"
+    );
     launcher.appendChild(iconWrapper);
 
     const label = document.createElement("span");
