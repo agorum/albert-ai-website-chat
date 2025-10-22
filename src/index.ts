@@ -40,7 +40,6 @@ export interface ChatWidgetTexts {
   teaserText: string;
   headerTitle: string;
   headerSubtitle: string;
-  placeholder: string;
   sendButtonLabel: string;
   closeLabel: string;
   reloadLabel: string;
@@ -126,7 +125,6 @@ const defaultOptions: ChatWidgetOptions = {
     teaserText: "Hallo! Wie kann ich helfen?",
     headerTitle: "Albert AI Assistant",
     headerSubtitle: "Wir sind gleich für Sie da",
-    placeholder: "Ihre Nachricht...",
     sendButtonLabel: "Senden",
     closeLabel: "Schließen",
     reloadLabel: "Neu starten",
@@ -258,13 +256,11 @@ export class ChatWidget {
   private isConsentGranted: boolean;
   private isTerminated = false;
   private consentPromptElement?: HTMLDivElement;
-  private defaultPlaceholder: string;
   private shouldAutoScroll = true;
 
   constructor(options: DeepPartial<ChatWidgetOptions> = {}) {
     this.options = deepMerge(defaultOptions, options);
     this.instanceId = ++widgetInstanceCounter;
-    this.defaultPlaceholder = this.options.texts.placeholder;
     this.isConsentGranted = !this.options.requirePrivacyConsent;
   }
 
@@ -369,9 +365,9 @@ export class ChatWidget {
     this.removeConsentPrompt();
     if (this.options.requirePrivacyConsent && !this.isConsentGranted) {
       this.renderConsentPrompt();
-      this.setInputDisabled(true, this.options.texts.consentPendingPlaceholder);
+      this.hideInputArea(this.options.texts.consentPendingPlaceholder);
     } else if (!this.isTerminated) {
-      this.setInputDisabled(false, this.defaultPlaceholder);
+      this.showInputArea();
       if (!this.messages.length) {
         this.addMessage(
           {
@@ -425,9 +421,6 @@ export class ChatWidget {
     this.messageList.appendChild(wrapper);
     this.consentPromptElement = wrapper;
     this.scrollToBottom({ force: true });
-    if (this.inputArea) {
-      this.inputArea.classList.add("acw-hidden");
-    }
   }
 
   private removeConsentPrompt(): void {
@@ -443,7 +436,7 @@ export class ChatWidget {
     }
     this.isConsentGranted = true;
     this.removeConsentPrompt();
-    this.setInputDisabled(false, this.defaultPlaceholder);
+    this.showInputArea();
     if (!this.messages.length) {
       this.shouldAutoScroll = true;
       this.addMessage(
@@ -457,9 +450,6 @@ export class ChatWidget {
     }
     this.updateSendAvailability();
     this.focusInput();
-    if (this.inputArea) {
-      this.inputArea.classList.remove("acw-hidden");
-    }
   };
 
   private handleConsentDecline = (): void => {
@@ -469,7 +459,7 @@ export class ChatWidget {
     this.isConsentGranted = false;
     this.isTerminated = true;
     this.removeConsentPrompt();
-    this.setInputDisabled(true, this.options.texts.consentDeclinedPlaceholder);
+    this.hideInputArea(this.options.texts.consentDeclinedPlaceholder);
     this.shouldAutoScroll = true;
     this.addMessage(
       {
@@ -493,8 +483,6 @@ export class ChatWidget {
     this.inputField.setAttribute("aria-disabled", disabled ? "true" : "false");
     if (placeholder !== undefined) {
       this.inputField.placeholder = placeholder;
-    } else if (!disabled) {
-      this.inputField.placeholder = this.defaultPlaceholder;
     }
     if (disabled) {
       this.inputField.value = "";
@@ -508,6 +496,23 @@ export class ChatWidget {
     } else {
       this.adjustTextareaHeight();
     }
+  }
+
+  private showInputArea(): void {
+    if (this.inputArea) {
+      this.inputArea.classList.remove("acw-hidden");
+    }
+    this.setInputDisabled(false);
+    if (this.inputField) {
+      this.inputField.placeholder = "";
+    }
+  }
+
+  private hideInputArea(placeholder?: string): void {
+    if (this.inputArea) {
+      this.inputArea.classList.add("acw-hidden");
+    }
+    this.setInputDisabled(true, placeholder);
   }
 
   private canSendMessage(): boolean {
@@ -1048,6 +1053,7 @@ export class ChatWidget {
     body.appendChild(this.messageList);
 
     const inputArea = this.createInputArea();
+    this.inputArea = inputArea;
     body.appendChild(inputArea);
 
     chat.appendChild(body);
@@ -1110,7 +1116,7 @@ export class ChatWidget {
     return header;
   }
 
-  private createInputArea(): HTMLElement {
+  private createInputArea(): HTMLDivElement {
     const wrapper = document.createElement("div");
     wrapper.className = "acw-input-area";
 
@@ -1119,10 +1125,9 @@ export class ChatWidget {
 
     this.inputField = document.createElement("textarea");
     this.inputField.className = "acw-textarea";
-    this.inputField.placeholder = this.options.texts.placeholder;
     this.inputField.rows = 1;
     this.inputField.setAttribute("maxlength", "1000");
-    this.inputField.setAttribute("aria-label", this.options.texts.placeholder);
+    this.inputField.setAttribute("aria-label", this.options.texts.sendButtonLabel);
 
     row.appendChild(this.inputField);
 
