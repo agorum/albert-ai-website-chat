@@ -1,3 +1,5 @@
+import { marked } from "marked";
+
 /*
  * Albert AI Chat Widget
  *
@@ -76,6 +78,8 @@ export interface ChatWidgetOptions {
   theme: ChatWidgetTheme;
   texts: ChatWidgetTexts;
   icons: ChatWidgetIcons;
+  serviceConfig?: ChatServiceConfig;
+  welcomeMessage?: ChatWelcomeMessageOptions;
   footerLinks: ChatFooterLink[];
   dimensions: ChatWidgetDimensions;
   teaserDelayMs: number;
@@ -84,12 +88,69 @@ export interface ChatWidgetOptions {
   zIndex: number;
   locale: string;
   requirePrivacyConsent: boolean;
+  disclaimer: ChatDisclaimerOptions;
 }
 
 export interface ChatMessage {
   role: ChatRole;
   content: string;
   timestamp: Date;
+  status?: "pending" | "sent" | "failed";
+  localOnly?: boolean;
+}
+
+export interface ChatServiceConfig {
+  endpoint: string;
+  preset?: string;
+  pollIntervalMs?: number;
+  storageKey?: string;
+}
+
+export interface ChatDisclaimerOptions {
+  enabled: boolean;
+  text: string;
+  className?: string;
+  styles?: Record<string, string>;
+}
+
+export interface ChatWelcomeMessageOptions {
+  enabled: boolean;
+  text?: string;
+  className?: string;
+  styles?: Record<string, string>;
+}
+
+interface ChatServiceOffsets {
+  history: number;
+  text: number;
+}
+
+interface ChatServiceHistoryEntry {
+  role: string;
+  text?: string;
+  dateTime?: string;
+}
+
+interface ChatServiceInfoResponse {
+  id?: string;
+  history?: ChatServiceHistoryEntry[];
+  offsets?: ChatServiceOffsets;
+  running?: boolean;
+}
+
+interface ChatServiceInitResponse {
+  id: string;
+}
+
+interface ResolvedChatServiceConfig extends ChatServiceConfig {
+  pollIntervalMs: number;
+  storageKey: string;
+}
+
+interface MessageElementRefs {
+  wrapper: HTMLDivElement;
+  bubble: HTMLDivElement;
+  timestamp: HTMLSpanElement;
 }
 
 type DeepPartial<T> = {
@@ -155,7 +216,7 @@ const defaultOptions: ChatWidgetOptions = {
     { label: "Impressum", href: "#impressum", target: "_blank" },
   ],
   dimensions: {
-    widthPercent: 30,
+    widthPercent: 33,
     minWidthPx: 320,
     heightPercent: 70,
     minHeightPx: 420,
@@ -171,9 +232,169 @@ const defaultOptions: ChatWidgetOptions = {
   zIndex: 9999,
   locale: typeof navigator !== "undefined" ? navigator.language : "de-DE",
   requirePrivacyConsent: true,
+  serviceConfig: undefined,
+  disclaimer: {
+    enabled: true,
+    text: "Hinweis: Albert kann sich irren. Bitte prüfen Sie wichtige Informationen nach.",
+    className: "",
+    styles: {
+      color: "rgba(15, 23, 42, 0.55)",
+      fontSize: "0.75rem",
+      marginTop: "8px",
+    },
+  },
+  welcomeMessage: {
+    enabled: true,
+    text: "Hallo! Ich bin Albert. Wie kann ich Ihnen heute weiterhelfen?",
+    className: "",
+    styles: {},
+  },
 };
 
 let widgetInstanceCounter = 0;
+
+const DEFAULT_SERVICE_POLL_INTERVAL = 250;
+const DEFAULT_STORAGE_KEY = "albert-chat-session-id";
+const MAX_POLL_FAILURES_BEFORE_RESET = 3;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&(?!#?\w+;)/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function sanitizeUrl(rawUrl: string | undefined | null): string {
+  if (!rawUrl) {
+    return "#";
+  }
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return "#";
+  }
+  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^(\/|#)/.test(trimmed)) {
+    return trimmed;
+  }
+  return "#";
+}
+
+function decodeHtmlEntities(value: string): string {
+  if (!value || !value.includes("&")) {
+    return value;
+  }
+
+  const decodeOnce = (input: string): string =>
+    input.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity) => {
+      const lower = entity.toLowerCase();
+      if (lower === "amp") {
+        return "&";
+      }
+      if (lower === "lt") {
+        return "<";
+      }
+      if (lower === "gt") {
+        return ">";
+      }
+      if (lower === "quot") {
+        return '"';
+      }
+      if (lower === "apos") {
+        return "'";
+      }
+      if (lower === "nbsp") {
+        return "\u00a0";
+      }
+      if (lower.startsWith("#x")) {
+        const charCode = Number.parseInt(lower.slice(2), 16);
+        return Number.isFinite(charCode) ? String.fromCharCode(charCode) : match;
+      }
+      if (lower.startsWith("#")) {
+        const charCode = Number.parseInt(lower.slice(1), 10);
+        return Number.isFinite(charCode) ? String.fromCharCode(charCode) : match;
+      }
+      return match;
+    });
+
+  let previous = value;
+  let current = decodeOnce(value);
+
+  while (current !== previous) {
+    previous = current;
+    current = decodeOnce(current);
+  }
+
+  return current;
+}
+
+const markdownRenderer = new marked.Renderer();
+
+markdownRenderer.paragraph = (text: string): string => `<p>${text}</p>`;
+markdownRenderer.text = (text: string): string => escapeHtml(text);
+markdownRenderer.strong = (text: string): string => `<strong>${text}</strong>`;
+markdownRenderer.em = (text: string): string => `<em>${text}</em>`;
+markdownRenderer.codespan = (text: string): string => `<code>${escapeHtml(text)}</code>`;
+markdownRenderer.code = (code: string): string => `<pre><code>${escapeHtml(code)}</code></pre>`;
+markdownRenderer.heading = (text: string, level: number): string =>
+  `<h${level}>${text}</h${level}>`;
+markdownRenderer.list = (body: string, ordered: boolean): string =>
+  `<${ordered ? "ol" : "ul"}>${body}</${ordered ? "ol" : "ul"}>`;
+markdownRenderer.listitem = (text: string): string => `<li>${text}</li>`;
+markdownRenderer.blockquote = (text: string): string => `<blockquote>${text}</blockquote>`;
+markdownRenderer.link = (href: string | null, title: string | null, text: string): string => {
+  const safeHref = sanitizeUrl(href);
+  const titleAttr = title ? ` title="${escapeHtmlAttribute(title)}"` : "";
+  return `<a href="${safeHref}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+};
+markdownRenderer.image = (href: string | null, title: string | null, text: string): string => {
+  const safeHref = sanitizeUrl(href);
+  const titleAttr = title ? ` title="${escapeHtmlAttribute(title)}"` : "";
+  const alt = escapeHtmlAttribute(text || "");
+  return `<img src="${safeHref}" alt="${alt}"${titleAttr} />`;
+};
+markdownRenderer.html = (html: string): string => escapeHtml(html);
+markdownRenderer.br = (): string => "<br />";
+markdownRenderer.hr = (): string => "<hr />";
+markdownRenderer.table = (header: string, body: string): string =>
+  `<table><thead>${header}</thead><tbody>${body}</tbody></table>`;
+markdownRenderer.tablerow = (content: string): string => `<tr>${content}</tr>`;
+markdownRenderer.tablecell = (
+  content: string,
+  flags: { header: boolean; align: "center" | "left" | "right" | null }
+): string => {
+  const tag = flags.header ? "th" : "td";
+  const align = flags.align ? ` style="text-align:${flags.align}"` : "";
+  return `<${tag}${align}>${content}</${tag}>`;
+};
+
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+  renderer: markdownRenderer,
+});
+
+function renderMarkdown(content: string): string {
+  if (!content.trim()) {
+    return "";
+  }
+  const normalized = decodeHtmlEntities(content);
+  const rendered = marked.parse(normalized, { renderer: markdownRenderer });
+  return typeof rendered === "string" ? rendered : "";
+}
+
+function renderPlainText(content: string): string {
+  if (!content) {
+    return "";
+  }
+  const normalized = decodeHtmlEntities(content);
+  return escapeHtml(normalized).replace(/\r?\n/g, "<br />");
+}
 
 function deepMerge<T>(target: T, source: DeepPartial<T>): T {
   if (!source) {
@@ -238,9 +459,24 @@ export class ChatWidget {
   private reloadButton!: HTMLButtonElement;
   private footerLinksContainer!: HTMLDivElement;
   private typingIndicator?: HTMLDivElement;
+  private typingIndicatorContent?: HTMLElement;
+  private typingIndicatorCursor?: HTMLSpanElement;
+  private typingIndicatorTimestamp?: HTMLSpanElement;
+  private typingIndicatorIsStandalone = false;
   private isOpen = false;
   private hasEverOpened = false;
   private messages: ChatMessage[] = [];
+  private messageElements: Array<MessageElementRefs | null> = [];
+  private historyContents: string[] = [];
+  private disclaimerElement?: HTMLDivElement;
+  private welcomeMessageElement?: HTMLDivElement;
+  private welcomeMessageAnimated = false;
+  private welcomeMessageTypingTimer: number | null = null;
+  private hasShownWelcomeMessage = false;
+  private isWelcomeTyping = false;
+  private welcomeAnimationHasRun = false;
+  private pendingWelcomeAnimationCallbacks: Array<() => void> = [];
+  private welcomeAnimationPlayedOnce = false;
   private teaserTimerId: number | null = null;
   private mockResponseIndex = 0;
   private readonly instanceId: number;
@@ -258,11 +494,35 @@ export class ChatWidget {
   private consentPromptElement?: HTMLDivElement;
   private shouldAutoScroll = true;
   private readonly inputPlaceholder = "Ihre Nachricht …";
+  private serviceConfig?: ResolvedChatServiceConfig;
+  private chatId: string | null = null;
+  private chatOffsets: ChatServiceOffsets | null = null;
+  private pollTimerId: number | null = null;
+  private infoPollInFlight = false;
+  private infoFetchPromise: Promise<boolean> | null = null;
+  private pollFailureCount = 0;
+  private storage: Storage | null = null;
+  private isInitializingSession = false;
+  private initializingPromise: Promise<boolean> | null = null;
+  private hasLoadedInitialHistory = false;
+
+  private normalizeEndpoint(endpoint: string): string {
+    return endpoint.trim().replace(/\/+$/, "");
+  }
 
   constructor(options: DeepPartial<ChatWidgetOptions> = {}) {
     this.options = deepMerge(defaultOptions, options);
     this.instanceId = ++widgetInstanceCounter;
     this.isConsentGranted = !this.options.requirePrivacyConsent;
+    if (this.options.serviceConfig?.endpoint) {
+      const { endpoint, pollIntervalMs, storageKey, ...rest } = this.options.serviceConfig;
+      this.serviceConfig = {
+        ...rest,
+        endpoint: this.normalizeEndpoint(endpoint),
+        pollIntervalMs: pollIntervalMs ?? DEFAULT_SERVICE_POLL_INTERVAL,
+        storageKey: storageKey ?? DEFAULT_STORAGE_KEY,
+      };
+    }
   }
 
   mount(): void {
@@ -286,15 +546,24 @@ export class ChatWidget {
 
     target.appendChild(this.host);
 
+    this.storage = this.resolveStorage();
+    if (this.serviceConfig) {
+      this.chatId = this.loadPersistedChatId();
+      if (this.chatId && this.options.requirePrivacyConsent) {
+        this.isConsentGranted = true;
+      }
+    }
+
     this.registerEventListeners();
     this.startTeaserCountdown();
-    this.resetConversation();
+    this.resetConversation({ preserveSession: true });
     this.updateDimensions();
   }
 
   destroy(): void {
     this.stopTeaserCountdown();
     this.clearStreamingTimers();
+    this.stopPolling();
     this.hideTypingIndicator();
     window.removeEventListener("resize", this.handleWindowResize);
     if (this.messageList) {
@@ -344,19 +613,93 @@ export class ChatWidget {
     }
   }
 
-  resetConversation(): void {
+  resetConversation(options: { preserveSession?: boolean } = {}): void {
+    const { preserveSession = false } = options;
     this.clearStreamingTimers();
+    this.stopPolling();
     this.hideTypingIndicator();
     this.shouldAutoScroll = true;
     this.isAwaitingAgent = false;
     this.isTerminated = false;
     this.isConsentGranted = !this.options.requirePrivacyConsent;
     this.messages = [];
+    this.messageElements = [];
+    this.historyContents = [];
+    this.hasLoadedInitialHistory = false;
     this.mockResponseIndex = 0;
-    if (this.messageList) {
-      this.messageList.innerHTML = "";
+    this.cancelWelcomeAnimationCallbacks();
+    if (!preserveSession) {
+      this.welcomeAnimationPlayedOnce = false;
+    }
+    this.clearMessageList();
+    this.hasShownWelcomeMessage = false;
+    this.welcomeAnimationHasRun = false;
+    if (this.options.requirePrivacyConsent && this.chatId && (preserveSession || !!this.serviceConfig)) {
+      this.isConsentGranted = true;
+    }
+    if (this.serviceConfig && !preserveSession) {
+      this.clearChatSession();
+      if (this.options.requirePrivacyConsent) {
+        this.isConsentGranted = false;
+      }
     }
     this.renderInitialState();
+  }
+
+  private resolveStorage(): Storage | null {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    try {
+      const storage = window.localStorage;
+      const testKey = `acw-storage-test-${this.instanceId}`;
+      storage.setItem(testKey, "1");
+      storage.removeItem(testKey);
+      return storage;
+    } catch (error) {
+      console.warn("AlbertChat: Zugriff auf localStorage nicht möglich.", error);
+      return null;
+    }
+  }
+
+  private loadPersistedChatId(): string | null {
+    if (!this.storage || !this.serviceConfig) {
+      return null;
+    }
+    try {
+      return this.storage.getItem(this.serviceConfig.storageKey);
+    } catch (error) {
+      console.warn("AlbertChat: Chat-ID konnte nicht gelesen werden.", error);
+      return null;
+    }
+  }
+
+  private persistChatId(id: string | null): void {
+    if (!this.storage || !this.serviceConfig) {
+      return;
+    }
+    try {
+      if (id) {
+        this.storage.setItem(this.serviceConfig.storageKey, id);
+      } else {
+        this.storage.removeItem(this.serviceConfig.storageKey);
+      }
+    } catch (error) {
+      console.warn("AlbertChat: Chat-ID konnte nicht gespeichert werden.", error);
+    }
+  }
+
+  private clearChatSession(): void {
+    this.chatId = null;
+    this.chatOffsets = null;
+    this.pollFailureCount = 0;
+    this.hasLoadedInitialHistory = false;
+    this.persistChatId(null);
+    this.hasShownWelcomeMessage = false;
+    this.welcomeAnimationHasRun = false;
+    this.cancelWelcomeAnimationCallbacks();
+    this.welcomeAnimationPlayedOnce = false;
+    this.resetTypingIndicatorState();
   }
 
   private renderInitialState(): void {
@@ -369,7 +712,18 @@ export class ChatWidget {
       this.hideInputArea(this.options.texts.consentPendingPlaceholder);
     } else if (!this.isTerminated) {
       this.showInputArea();
-      if (!this.messages.length) {
+      this.ensureWelcomeMessage();
+      if (this.serviceConfig) {
+        if (!this.hasLoadedInitialHistory) {
+          if (!this.options.welcomeMessage?.enabled) {
+            this.renderEmptyState();
+          } else {
+            this.clearMessageList();
+            this.ensureWelcomeMessage();
+          }
+          this.requestServiceInitialization();
+        }
+      } else if (!this.messages.length && !this.options.welcomeMessage?.enabled) {
         this.addMessage(
           {
             role: "agent",
@@ -380,7 +734,286 @@ export class ChatWidget {
         );
       }
     }
+    this.ensureDisclaimer();
     this.updateSendAvailability();
+  }
+
+  private requestServiceInitialization(forceReinit = false): void {
+    if (!this.serviceConfig) {
+      return;
+    }
+    void this.ensureChatSessionInitialized(forceReinit).catch((error) => {
+      console.error("AlbertChat: Serviceinitialisierung fehlgeschlagen.", error);
+      this.showServiceError(
+        "Der Chat konnte nicht gestartet werden. Bitte versuchen Sie es erneut."
+      );
+    });
+  }
+
+  private clearMessageList(): void {
+    if (!this.messageList) {
+      return;
+    }
+    this.messageList.innerHTML = "";
+    this.disclaimerElement = undefined;
+    this.welcomeMessageElement = undefined;
+    this.resetTypingIndicatorState();
+    const wasTyping = this.isWelcomeTyping;
+    if (this.welcomeMessageTypingTimer !== null) {
+      window.clearInterval(this.welcomeMessageTypingTimer);
+      this.welcomeMessageTypingTimer = null;
+    }
+    this.isWelcomeTyping = false;
+    if (wasTyping) {
+      this.cancelWelcomeAnimationCallbacks();
+      this.hasShownWelcomeMessage = false;
+      this.welcomeAnimationHasRun = false;
+      this.welcomeMessageAnimated = false;
+    } else {
+      this.welcomeMessageAnimated = this.hasShownWelcomeMessage;
+      this.welcomeAnimationHasRun = this.hasShownWelcomeMessage;
+    }
+  }
+
+  private renderEmptyState(): void {
+    if (!this.messageList) {
+      return;
+    }
+    if (this.options.welcomeMessage?.enabled) {
+      this.clearMessageList();
+      this.ensureWelcomeMessage();
+      return;
+    }
+    this.clearMessageList();
+    const empty = document.createElement("div");
+    empty.className = "acw-empty-state";
+    empty.textContent = this.options.texts.emptyState;
+    this.messageList.appendChild(empty);
+  }
+
+  private removeWelcomeMessage(): void {
+    if (this.welcomeMessageElement) {
+      this.welcomeMessageElement.remove();
+      this.welcomeMessageElement = undefined;
+    }
+    if (this.welcomeMessageTypingTimer !== null) {
+      window.clearInterval(this.welcomeMessageTypingTimer);
+      this.welcomeMessageTypingTimer = null;
+    }
+    this.welcomeMessageAnimated = false;
+    this.hasShownWelcomeMessage = false;
+    this.isWelcomeTyping = false;
+    this.welcomeAnimationHasRun = false;
+    this.cancelWelcomeAnimationCallbacks();
+  }
+
+  private ensureWelcomeMessage(): void {
+    if (!this.messageList) {
+      return;
+    }
+    const config = this.options.welcomeMessage;
+    if (!config?.enabled) {
+      this.removeWelcomeMessage();
+      return;
+    }
+    if (this.isWelcomeTyping && this.welcomeMessageElement) {
+      return;
+    }
+    const text = config.text ?? this.options.texts.initialMessage;
+    if (!text) {
+      this.removeWelcomeMessage();
+      return;
+    }
+
+    const emptyState = this.messageList.querySelector(".acw-empty-state");
+    if (emptyState) {
+      emptyState.remove();
+    }
+
+    let bubble: HTMLDivElement | null = null;
+    if (!this.welcomeMessageElement) {
+      const message: ChatMessage = {
+        role: "agent",
+        content: decodeHtmlEntities(text),
+        timestamp: new Date(),
+      };
+      const elements = this.buildMessageElement(message);
+      this.welcomeMessageElement = elements.wrapper;
+      elements.timestamp.textContent = "";
+      bubble = elements.bubble;
+    } else {
+      const existingBubble = this.welcomeMessageElement.querySelector(".acw-bubble");
+      bubble = existingBubble instanceof HTMLDivElement ? existingBubble : null;
+    }
+
+    if (bubble) {
+      if (
+        !this.hasShownWelcomeMessage &&
+        !this.welcomeAnimationHasRun &&
+        !this.welcomeAnimationPlayedOnce
+      ) {
+        this.startWelcomeMessageAnimation(bubble, text);
+      } else {
+        bubble.innerHTML = renderMarkdown(text);
+        this.hasShownWelcomeMessage = true;
+        this.welcomeMessageAnimated = true;
+      }
+    }
+
+    const classes = ["acw-message", "acw-message-agent", "acw-message-welcome"];
+    if (config.className) {
+      classes.push(config.className);
+    }
+    this.welcomeMessageElement.className = classes.join(" ");
+    this.welcomeMessageElement.removeAttribute("style");
+    if (config.styles) {
+      Object.entries(config.styles).forEach(([key, value]) => {
+        if (value !== undefined) {
+          this.welcomeMessageElement!.style.setProperty(key, value);
+        }
+      });
+    }
+
+    if (this.messageList.firstElementChild !== this.welcomeMessageElement) {
+      this.messageList.insertBefore(this.welcomeMessageElement, this.messageList.firstChild);
+    }
+    this.ensureDisclaimer();
+  }
+
+  private startWelcomeMessageAnimation(bubble: HTMLDivElement, text: string): void {
+    if (
+      this.hasShownWelcomeMessage ||
+      this.isWelcomeTyping ||
+      this.welcomeAnimationHasRun ||
+      this.welcomeAnimationPlayedOnce
+    ) {
+      bubble.innerHTML = renderMarkdown(text);
+      this.hasShownWelcomeMessage = true;
+      this.welcomeMessageAnimated = true;
+      this.flushWelcomeAnimationCallbacks();
+      return;
+    }
+    if (this.welcomeMessageTypingTimer !== null) {
+      return;
+    }
+
+    const renderedHtml = renderMarkdown(text);
+    let plain = decodeHtmlEntities(text);
+    this.welcomeAnimationPlayedOnce = true;
+    if (typeof document !== "undefined") {
+      const temp = document.createElement("div");
+      temp.innerHTML = renderedHtml;
+      plain = temp.textContent ?? plain;
+    }
+
+    const characters = Array.from(plain);
+    if (!characters.length) {
+      bubble.innerHTML = renderedHtml;
+      this.hasShownWelcomeMessage = true;
+      this.welcomeMessageAnimated = true;
+      this.isWelcomeTyping = false;
+      this.welcomeAnimationHasRun = true;
+      this.flushWelcomeAnimationCallbacks();
+      return;
+    }
+    let index = 0;
+    bubble.innerHTML = "";
+    const span = document.createElement("span");
+    span.className = "acw-welcome-typing";
+    bubble.appendChild(span);
+    this.welcomeMessageAnimated = false;
+    this.isWelcomeTyping = true;
+
+    const flush = (): void => {
+      if (index >= characters.length) {
+        if (this.welcomeMessageTypingTimer !== null) {
+          window.clearInterval(this.welcomeMessageTypingTimer);
+          this.welcomeMessageTypingTimer = null;
+        }
+        this.welcomeMessageAnimated = true;
+        this.hasShownWelcomeMessage = true;
+        this.isWelcomeTyping = false;
+        this.welcomeAnimationHasRun = true;
+        bubble.innerHTML = renderedHtml;
+        this.ensureDisclaimer();
+        this.flushWelcomeAnimationCallbacks();
+        return;
+      }
+      index += 1;
+      span.textContent = characters.slice(0, index).join("");
+    };
+
+    flush();
+    const interval = characters.length > 250 ? 24 : characters.length > 150 ? 28 : characters.length > 80 ? 32 : 36;
+    this.welcomeMessageTypingTimer = window.setInterval(flush, interval);
+  }
+
+  private runAfterWelcomeAnimation(callback: () => void): void {
+    if (!this.isWelcomeTyping) {
+      callback();
+      return;
+    }
+    this.pendingWelcomeAnimationCallbacks.push(callback);
+  }
+
+  private flushWelcomeAnimationCallbacks(): void {
+    if (!this.pendingWelcomeAnimationCallbacks.length) {
+      return;
+    }
+    const callbacks = this.pendingWelcomeAnimationCallbacks.slice();
+    this.pendingWelcomeAnimationCallbacks = [];
+    callbacks.forEach((callback) => {
+      try {
+        callback();
+      } catch (error) {
+        console.error("AlbertChat: Fehler beim Ausführen eines Welcome-Callbacks.", error);
+      }
+    });
+  }
+
+  private cancelWelcomeAnimationCallbacks(): void {
+    this.pendingWelcomeAnimationCallbacks = [];
+  }
+
+  private ensureDisclaimer(): void {
+    if (!this.messageList) {
+      return;
+    }
+    const config = this.options.disclaimer;
+    const hasContent = this.messages.length > 0 || !!this.welcomeMessageElement;
+    if (!config?.enabled || !hasContent) {
+      if (this.disclaimerElement) {
+        this.disclaimerElement.remove();
+        this.disclaimerElement = undefined;
+      }
+      return;
+    }
+
+    if (!this.disclaimerElement) {
+      this.disclaimerElement = document.createElement("div");
+    }
+
+    const classes = ["acw-disclaimer"];
+    if (config.className) {
+      classes.push(config.className);
+    }
+    this.disclaimerElement.className = classes.join(" ").trim();
+    this.disclaimerElement.textContent = config.text;
+
+    this.disclaimerElement.removeAttribute("style");
+    if (config.styles) {
+      Object.entries(config.styles).forEach(([key, value]) => {
+        if (value !== undefined) {
+          this.disclaimerElement!.style.setProperty(key, value);
+        }
+      });
+    }
+
+    if (this.disclaimerElement.parentElement !== this.messageList) {
+      this.messageList.appendChild(this.disclaimerElement);
+    } else if (this.messageList.lastElementChild !== this.disclaimerElement) {
+      this.messageList.appendChild(this.disclaimerElement);
+    }
   }
 
   private renderConsentPrompt(): void {
@@ -438,7 +1071,16 @@ export class ChatWidget {
     this.isConsentGranted = true;
     this.removeConsentPrompt();
     this.showInputArea();
-    if (!this.messages.length) {
+    if (this.serviceConfig) {
+      this.shouldAutoScroll = true;
+      if (this.options.welcomeMessage?.enabled) {
+        this.clearMessageList();
+        this.ensureWelcomeMessage();
+      } else {
+        this.renderEmptyState();
+      }
+      this.requestServiceInitialization();
+    } else if (!this.messages.length && !this.options.welcomeMessage?.enabled) {
       this.shouldAutoScroll = true;
       this.addMessage(
         {
@@ -449,6 +1091,7 @@ export class ChatWidget {
         { forceScroll: true, smooth: true, autoScroll: true }
       );
     }
+    this.ensureWelcomeMessage();
     this.updateSendAvailability();
     this.focusInput();
   };
@@ -599,7 +1242,127 @@ export class ChatWidget {
     options: { forceScroll?: boolean; smooth?: boolean; autoScroll?: boolean } = {}
   ): void {
     this.messages.push(message);
-    this.appendMessageElement(message, options);
+    const elements = this.appendMessageElement(message, options);
+    this.messageElements.push(elements);
+    if (elements) {
+      this.applyMessageStatus(elements.wrapper, message);
+    }
+  }
+
+  private applyMessageStatus(wrapper: HTMLDivElement, message: ChatMessage): void {
+    wrapper.classList.remove("acw-message-failed", "acw-message-pending");
+    if (message.role !== "user") {
+      return;
+    }
+    if (message.status === "failed") {
+      wrapper.classList.add("acw-message-failed");
+    } else if (message.status === "pending") {
+      wrapper.classList.add("acw-message-pending");
+    }
+  }
+
+  private getLastUserMessageIndex(): number {
+    for (let index = this.messages.length - 1; index >= 0; index -= 1) {
+      const candidate = this.messages[index];
+      if (candidate && candidate.role === "user") {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  private setUserMessageStatus(index: number, status: "pending" | "sent" | "failed"): void {
+    const message = this.messages[index];
+    if (!message || message.role !== "user") {
+      return;
+    }
+    message.status = status;
+    message.localOnly = status !== "sent";
+    const refs = this.messageElements[index];
+    if (refs) {
+      this.applyMessageStatus(refs.wrapper, message);
+    }
+  }
+
+  private markLastUserMessageStatus(status: "pending" | "sent" | "failed"): void {
+    const index = this.getLastUserMessageIndex();
+    if (index === -1) {
+      return;
+    }
+    this.setUserMessageStatus(index, status);
+  }
+
+  private hasLocalOnlyMessages(): boolean {
+    return this.messages.some((message) => message.localOnly);
+  }
+
+  private removeMessageAt(index: number): void {
+    const refs = this.messageElements[index];
+    if (refs?.wrapper?.parentElement) {
+      refs.wrapper.parentElement.removeChild(refs.wrapper);
+    }
+    this.messages.splice(index, 1);
+    this.messageElements.splice(index, 1);
+    this.ensureDisclaimer();
+    this.ensureWelcomeMessage();
+  }
+
+  private removeFailedUserMessages(): void {
+    let removed = false;
+    for (let index = this.messages.length - 1; index >= 0; index -= 1) {
+      const message = this.messages[index];
+      if (message?.role === "user" && message.status === "failed") {
+        this.removeMessageAt(index);
+        removed = true;
+      }
+    }
+    if (removed) {
+      this.ensureDisclaimer();
+    }
+  }
+
+  private removeLocalAgentMessages(): void {
+    let removed = false;
+    for (let index = this.messages.length - 1; index >= 0; index -= 1) {
+      const message = this.messages[index];
+      if (message?.role === "agent" && message.localOnly) {
+        this.removeMessageAt(index);
+        removed = true;
+      }
+    }
+    if (removed) {
+      this.ensureDisclaimer();
+    }
+  }
+
+  private hydrateMessagesFromHistory(history: ChatServiceHistoryEntry[]): void {
+    this.messages = [];
+    this.messageElements = [];
+    this.historyContents = [];
+    if (this.messageList) {
+      this.clearMessageList();
+    }
+
+    history.forEach((entry) => {
+      const role = this.mapServiceRole(entry.role);
+      const content = decodeHtmlEntities(entry.text ?? "");
+      const message: ChatMessage = {
+        role,
+        content,
+        timestamp: this.parseTimestamp(entry.dateTime),
+        status: role === "user" ? "sent" : undefined,
+        localOnly: false,
+      };
+      this.historyContents.push(content);
+      this.addMessage(message, { autoScroll: false });
+    });
+
+    if (this.messageList) {
+      this.scrollToBottom({ smooth: false, force: true });
+    }
+
+    this.ensureWelcomeMessage();
+    this.ensureDisclaimer();
   }
 
   private resolveTarget(): HTMLElement {
@@ -816,7 +1579,7 @@ export class ChatWidget {
         padding: var(--acw-spacing-sm) var(--acw-spacing-md);
         line-height: 1.45;
         word-break: break-word;
-        white-space: pre-wrap;
+        white-space: normal;
       }
       .acw-message-user .acw-bubble {
         background: var(--acw-user-message-color);
@@ -828,9 +1591,88 @@ export class ChatWidget {
         color: var(--acw-agent-text-color);
         border-bottom-left-radius: 4px;
       }
+      .acw-message-pending .acw-bubble {
+        opacity: 0.85;
+      }
+      .acw-message-failed .acw-bubble {
+        background: rgba(239, 68, 68, 0.12);
+        color: var(--acw-text-color);
+        border: 1px solid rgba(239, 68, 68, 0.35);
+      }
+      .acw-message-failed .acw-timestamp {
+        color: rgba(239, 68, 68, 0.7);
+      }
+      .acw-message-welcome {
+        opacity: 0.95;
+      }
+      .acw-message-welcome .acw-timestamp {
+        display: none;
+      }
+      .acw-welcome-typing {
+        white-space: pre-wrap;
+      }
       .acw-timestamp {
         font-size: 0.75rem;
         color: rgba(15, 23, 42, 0.55);
+      }
+      .acw-bubble p {
+        margin: 0 0 0.6em 0;
+      }
+      .acw-bubble p:last-child {
+        margin-bottom: 0;
+      }
+      .acw-bubble ul,
+      .acw-bubble ol {
+        margin: 0 0 0.6em 1.25em;
+        padding: 0;
+      }
+      .acw-bubble ul:last-child,
+      .acw-bubble ol:last-child {
+        margin-bottom: 0;
+      }
+      .acw-bubble li + li {
+        margin-top: 0.25em;
+      }
+      .acw-bubble code {
+        background: rgba(15, 23, 42, 0.08);
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      .acw-bubble pre {
+        background: rgba(15, 23, 42, 0.08);
+        padding: 0.75em;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 0.85em;
+        margin: 0 0 0.75em 0;
+      }
+      .acw-bubble pre code {
+        background: transparent;
+        padding: 0;
+        border-radius: 0;
+        font-size: inherit;
+      }
+      .acw-bubble pre:last-child {
+        margin-bottom: 0;
+      }
+      .acw-bubble a {
+        color: var(--acw-primary-color);
+        text-decoration: underline;
+      }
+      .acw-bubble hr {
+        border: none;
+        border-top: 1px solid rgba(148, 163, 184, 0.35);
+        margin: 0.75em 0;
+      }
+      .acw-disclaimer {
+        font-size: 0.75rem;
+        color: rgba(15, 23, 42, 0.55);
+        margin: var(--acw-spacing-xs) auto 0 var(--acw-spacing-sm);
+        padding: 0;
+        align-self: flex-start;
+        max-width: 85%;
+        line-height: 1.3;
       }
       .acw-input-area {
         border-top: 1px solid var(--acw-border-color);
@@ -1000,31 +1842,27 @@ export class ChatWidget {
       .acw-typing {
         align-self: flex-start;
       }
-      .acw-typing .acw-bubble {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+      .acw-bubble-typing {
+        display: block;
+        position: relative;
         background: var(--acw-agent-message-color);
         color: var(--acw-agent-text-color);
       }
-      .acw-typing-dots {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+      .acw-typing .acw-typing-content {
+        display: block;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
-      .acw-typing-dot {
-        width: 6px;
-        height: 6px;
+      .acw-typing .acw-typing-cursor {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-left: 4px;
         border-radius: 50%;
         background: var(--acw-agent-text-color);
-        opacity: 0.5;
-        animation: acw-typing-bounce 1.2s infinite;
-      }
-      .acw-typing-dot:nth-child(2) {
-        animation-delay: 0.2s;
-      }
-      .acw-typing-dot:nth-child(3) {
-        animation-delay: 0.4s;
+        animation: acw-typing-pulse 1s ease-in-out infinite;
+        opacity: 0.75;
+        vertical-align: baseline;
       }
       .acw-consent {
         align-self: stretch;
@@ -1072,13 +1910,13 @@ export class ChatWidget {
       .acw-consent-decline:hover {
         background: rgba(37, 99, 235, 0.08);
       }
-      @keyframes acw-typing-bounce {
-        0%, 80%, 100% {
-          transform: translateY(0);
+      @keyframes acw-typing-pulse {
+        0%, 100% {
+          transform: scale(0.6);
           opacity: 0.4;
         }
-        40% {
-          transform: translateY(-4px);
+        50% {
+          transform: scale(1);
           opacity: 1;
         }
       }
@@ -1282,7 +2120,9 @@ export class ChatWidget {
     this.teaserBubble.addEventListener("click", () => this.open());
     this.closeButton.addEventListener("click", () => this.close());
     this.reloadButton.addEventListener("click", () => this.resetConversation());
-    this.sendButton.addEventListener("click", () => this.handleSend());
+    this.sendButton.addEventListener("click", () => {
+      void this.handleSend();
+    });
     this.inputField.addEventListener("keydown", (event) => this.handleInputKeyDown(event));
     this.inputField.addEventListener("input", () => this.adjustTextareaHeight());
     this.messageList.addEventListener("scroll", this.handleMessagesScroll);
@@ -1354,11 +2194,11 @@ export class ChatWidget {
         return;
       }
       event.preventDefault();
-      this.handleSend();
+      void this.handleSend();
     }
   }
 
-  private handleSend(): void {
+  private async handleSend(): Promise<void> {
     if (!this.canSendMessage()) {
       return;
     }
@@ -1370,33 +2210,52 @@ export class ChatWidget {
     this.adjustTextareaHeight();
     this.shouldAutoScroll = true;
     this.enqueueUserMessage(content);
-    this.simulateAgentReply();
+    if (this.serviceConfig) {
+      await this.sendMessageToService(content);
+    } else {
+      this.simulateAgentReply();
+    }
   }
 
   private enqueueUserMessage(content: string): void {
     const message: ChatMessage = {
       role: "user",
-      content,
+      content: decodeHtmlEntities(content),
       timestamp: new Date(),
+      status: "pending",
+      localOnly: true,
     };
     this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
+    this.ensureDisclaimer();
   }
 
-  private enqueueAgentMessage(content: string, isInitial = false): void {
+  private enqueueAgentMessage(
+    content: string,
+    isInitial = false,
+    options: { localOnly?: boolean; status?: "pending" | "sent" | "failed" } = {}
+  ): void {
+    const normalizedContent = decodeHtmlEntities(content);
     const message: ChatMessage = {
       role: "agent",
-      content,
+      content: normalizedContent,
       timestamp: new Date(),
+      status: options.status,
+      localOnly: options.localOnly ?? false,
     };
     if (isInitial) {
       // Remove empty state if present for the welcome message.
-      if (this.messageList) {
-        this.messageList.innerHTML = "";
-      }
+      this.clearMessageList();
       this.shouldAutoScroll = true;
     }
     const forceScroll = isInitial || this.shouldAutoScroll;
     this.addMessage(message, { forceScroll, smooth: true, autoScroll: true });
+  }
+  
+  private renderMessageHtml(message: ChatMessage): string {
+    if (message.role === "agent") {
+      return renderMarkdown(message.content);
+    }
+    return renderPlainText(message.content);
   }
 
   private buildMessageElement(message: ChatMessage): {
@@ -1409,7 +2268,7 @@ export class ChatWidget {
 
     const bubble = document.createElement("div");
     bubble.className = "acw-bubble";
-    bubble.textContent = message.content;
+    bubble.innerHTML = this.renderMessageHtml(message);
 
     const metadata = document.createElement("span");
     metadata.className = "acw-timestamp";
@@ -1430,15 +2289,104 @@ export class ChatWidget {
       return null;
     }
     if (this.messageList.querySelector(".acw-empty-state")) {
-      this.messageList.innerHTML = "";
+      this.clearMessageList();
     }
 
-    const elements = this.buildMessageElement(message);
-    this.messageList.appendChild(elements.wrapper);
+    let elements:
+      | { wrapper: HTMLDivElement; bubble: HTMLDivElement; timestamp: HTMLSpanElement }
+      | null = null;
+    let reusedTypingIndicator = false;
+
+    if (
+      message.role === "agent" &&
+      this.typingIndicator &&
+      this.typingIndicatorContent &&
+      this.typingIndicatorCursor &&
+      this.typingIndicatorTimestamp
+    ) {
+      const wrapper = this.typingIndicator;
+      const bubble = this.typingIndicatorContent.parentElement as HTMLDivElement;
+      const timestamp = this.typingIndicatorTimestamp;
+      this.typingIndicatorIsStandalone = false;
+      this.typingIndicator.classList.add("acw-typing");
+      bubble.classList.add("acw-bubble-typing");
+      const renderedHtml = this.renderMessageHtml(message);
+      this.typingIndicatorContent.innerHTML = renderedHtml;
+      if (this.typingIndicatorCursor && !this.typingIndicatorCursor.parentElement) {
+        bubble.appendChild(this.typingIndicatorCursor);
+      }
+      if (this.typingIndicatorCursor) {
+        this.attachTypingCursor(this.typingIndicatorContent, this.typingIndicatorCursor);
+      }
+      timestamp.textContent = formatTime(message.timestamp, this.options.locale);
+      elements = { wrapper, bubble, timestamp };
+      reusedTypingIndicator = true;
+    } else {
+      const built = this.buildMessageElement(message);
+      const referenceNode =
+        (this.typingIndicator && this.typingIndicator.parentElement === this.messageList
+          ? this.typingIndicator
+          : null) ??
+        (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList
+          ? this.disclaimerElement
+          : null);
+
+      if (referenceNode) {
+        this.messageList.insertBefore(built.wrapper, referenceNode);
+      } else {
+        this.messageList.appendChild(built.wrapper);
+      }
+      elements = built;
+    }
+
+    if (!elements) {
+      return null;
+    }
     if (autoScroll) {
       this.scrollToBottom({ smooth, force: forceScroll });
     }
+    this.ensureDisclaimer();
+    if (reusedTypingIndicator) {
+      // Keep the typing indicator references linked to the active message until it completes.
+      this.typingIndicator = elements.wrapper;
+      const contentEl = elements.bubble.querySelector<HTMLElement>(".acw-typing-content");
+      if (contentEl) {
+        this.typingIndicatorContent = contentEl;
+      }
+      const cursorEl = elements.bubble.querySelector<HTMLSpanElement>(".acw-typing-cursor");
+      if (cursorEl) {
+        this.typingIndicatorCursor = cursorEl;
+      }
+      this.typingIndicatorTimestamp = elements.timestamp;
+    }
     return elements;
+  }
+
+  private updateMessageContentAt(index: number, content: string, timestamp?: Date): void {
+    const message = this.messages[index];
+    if (!message) {
+      return;
+    }
+    message.content = content;
+    if (timestamp) {
+      message.timestamp = timestamp;
+    }
+    const refs = this.messageElements[index];
+    if (refs) {
+      const typingContent = refs.bubble.querySelector<HTMLElement>(".acw-typing-content");
+      const typingCursor = refs.bubble.querySelector<HTMLSpanElement>(".acw-typing-cursor");
+      if (typingContent && typingCursor) {
+        typingContent.innerHTML = this.renderMessageHtml(message);
+        this.attachTypingCursor(typingContent, typingCursor);
+      } else {
+        refs.bubble.innerHTML = this.renderMessageHtml(message);
+      }
+      if (timestamp) {
+        refs.timestamp.textContent = formatTime(timestamp, this.options.locale);
+      }
+      this.applyMessageStatus(refs.wrapper, message);
+    }
+    this.ensureDisclaimer();
   }
 
   private scrollToBottom({
@@ -1476,6 +2424,81 @@ export class ChatWidget {
     }
   }
 
+  private resetTypingIndicatorState(): void {
+    this.typingIndicator = undefined;
+    this.typingIndicatorContent = undefined;
+    this.typingIndicatorCursor = undefined;
+    this.typingIndicatorTimestamp = undefined;
+    this.typingIndicatorIsStandalone = false;
+  }
+
+  private findLastContentNode(root: Node | null): Node | null {
+    if (!root) {
+      return null;
+    }
+    if (root.nodeType === Node.TEXT_NODE) {
+      const text = root.textContent ?? "";
+      return text.trim().length > 0 ? root : null;
+    }
+    if (root.nodeType !== Node.ELEMENT_NODE) {
+      return null;
+    }
+    for (let index = root.childNodes.length - 1; index >= 0; index -= 1) {
+      const child = root.childNodes[index];
+      const candidate = this.findLastContentNode(child);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    const element = root as HTMLElement;
+    if (element.tagName === "BR") {
+      return element;
+    }
+    if (!element.childNodes.length) {
+      return element;
+    }
+    return null;
+  }
+
+  private attachTypingCursor(container: HTMLElement, cursor: HTMLSpanElement): void {
+    if (!container || !cursor) {
+      return;
+    }
+    if (cursor.parentElement) {
+      cursor.parentElement.removeChild(cursor);
+    }
+    const target = this.findLastContentNode(container);
+    if (!target) {
+      container.appendChild(cursor);
+      return;
+    }
+    if (target.nodeType === Node.TEXT_NODE) {
+      const textNode = target as Text;
+      const parent = textNode.parentNode ?? container;
+      const current = textNode.textContent ?? "";
+      const parentElement = parent instanceof HTMLElement ? parent : null;
+      const preserveWhitespace =
+        parentElement && (parentElement.tagName === "PRE" || parentElement.tagName === "CODE");
+      const trimmed = preserveWhitespace ? current : current.replace(/\s+$/u, "");
+      if (!preserveWhitespace && trimmed !== current) {
+        textNode.textContent = trimmed;
+      }
+      parent.insertBefore(cursor, textNode.nextSibling);
+      return;
+    }
+    const element = target as HTMLElement;
+    const parent = element.parentNode ?? container;
+    if (element.tagName === "BR") {
+      parent.insertBefore(cursor, element.nextSibling);
+      return;
+    }
+    if (!element.childNodes.length) {
+      parent.insertBefore(cursor, element.nextSibling);
+      return;
+    }
+    element.appendChild(cursor);
+  }
+
   private showTypingIndicator(): void {
     if (!this.messageList || this.typingIndicator) {
       return;
@@ -1485,13 +2508,35 @@ export class ChatWidget {
     indicator.setAttribute("aria-live", "polite");
 
     const bubble = document.createElement("div");
-    bubble.className = "acw-bubble";
-    bubble.innerHTML =
-      '<span class="acw-typing-dots"><span class="acw-typing-dot"></span><span class="acw-typing-dot"></span><span class="acw-typing-dot"></span></span>';
+    bubble.className = "acw-bubble acw-bubble-typing";
+
+    const content = document.createElement("div");
+    content.className = "acw-typing-content";
+    bubble.appendChild(content);
+
+    const cursor = document.createElement("span");
+    cursor.className = "acw-typing-cursor";
+    bubble.appendChild(cursor);
+    this.attachTypingCursor(content, cursor);
+
+    const metadata = document.createElement("span");
+    metadata.className = "acw-timestamp";
+    metadata.textContent = "";
 
     indicator.appendChild(bubble);
-    this.messageList.appendChild(indicator);
+    indicator.appendChild(metadata);
+
+    if (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
+      this.messageList.insertBefore(indicator, this.disclaimerElement);
+    } else {
+      this.messageList.appendChild(indicator);
+    }
+
     this.typingIndicator = indicator;
+    this.typingIndicatorContent = content;
+    this.typingIndicatorCursor = cursor;
+    this.typingIndicatorTimestamp = metadata;
+    this.typingIndicatorIsStandalone = true;
     this.scrollToBottom({ smooth: true });
   }
 
@@ -1499,8 +2544,28 @@ export class ChatWidget {
     if (!this.typingIndicator) {
       return;
     }
-    this.typingIndicator.remove();
-    this.typingIndicator = undefined;
+    const wrapper = this.typingIndicator;
+    const bubble = this.typingIndicatorContent
+      ? (this.typingIndicatorContent.parentElement as HTMLDivElement | null)
+      : wrapper.querySelector<HTMLDivElement>(".acw-bubble");
+
+    if (this.typingIndicatorCursor?.parentElement) {
+      this.typingIndicatorCursor.parentElement.removeChild(this.typingIndicatorCursor);
+    }
+
+    if (!this.typingIndicatorIsStandalone && bubble && this.typingIndicatorContent) {
+      bubble.innerHTML = this.typingIndicatorContent.innerHTML;
+    }
+
+    if (this.typingIndicatorIsStandalone) {
+      wrapper.remove();
+    } else {
+      wrapper.classList.remove("acw-typing");
+      bubble?.classList.remove("acw-bubble-typing");
+      wrapper.removeAttribute("aria-live");
+    }
+
+    this.resetTypingIndicatorState();
   }
 
   private clearStreamingTimers({ finalize = false }: { finalize?: boolean } = {}): void {
@@ -1512,20 +2577,28 @@ export class ChatWidget {
       window.clearInterval(this.activeStreamInterval);
       this.activeStreamInterval = null;
     }
-    if (
+    const finalizedMessage =
       finalize &&
       this.currentStreamingMessage &&
       this.streamingMessageBubble &&
-      this.streamingMessageTimestamp
-    ) {
-      this.streamingMessageBubble.textContent = this.currentStreamingMessage.content;
-      this.streamingMessageTimestamp.textContent = formatTime(
-        this.currentStreamingMessage.timestamp,
+      this.streamingMessageTimestamp;
+    if (finalizedMessage) {
+      const bubble = this.streamingMessageBubble!;
+      const contentHtml = this.renderMessageHtml(this.currentStreamingMessage!);
+      const typingContent = bubble.querySelector<HTMLElement>(".acw-typing-content");
+      if (typingContent) {
+        typingContent.innerHTML = contentHtml;
+      } else {
+        bubble.innerHTML = contentHtml;
+      }
+      this.streamingMessageTimestamp!.textContent = formatTime(
+        this.currentStreamingMessage!.timestamp,
         this.options.locale
       );
       if (this.streamingMessageWrapper) {
         this.streamingMessageWrapper.classList.remove("acw-message-streaming");
       }
+      this.hideTypingIndicator();
       this.scrollToBottom({ smooth: true });
     } else if (this.streamingMessageWrapper) {
       this.streamingMessageWrapper.classList.remove("acw-message-streaming");
@@ -1538,6 +2611,444 @@ export class ChatWidget {
       this.isAwaitingAgent = false;
       this.updateSendAvailability();
     }
+    this.ensureDisclaimer();
+  }
+
+  private async ensureChatSessionInitialized(forceReinit = false): Promise<void> {
+    if (!this.serviceConfig) {
+      return;
+    }
+    if (this.isTerminated) {
+      return;
+    }
+    if (this.options.requirePrivacyConsent && !this.isConsentGranted) {
+      return;
+    }
+    if (forceReinit) {
+      this.clearChatSession();
+    }
+    if (!this.chatId) {
+      const initialized = await this.initChatSession();
+      if (!initialized) {
+        throw new Error("Chat initialisation failed");
+      }
+    }
+    if (!this.hasLoadedInitialHistory) {
+      const loaded = await this.fetchInfo({ fullRefresh: true, immediate: true });
+      if (!loaded) {
+        throw new Error("Failed to load chat history");
+      }
+    }
+  }
+
+  private async initChatSession(): Promise<boolean> {
+    const config = this.serviceConfig;
+    if (!config) {
+      return false;
+    }
+    if (this.initializingPromise) {
+      return this.initializingPromise;
+    }
+
+    const promise = (async (): Promise<boolean> => {
+      this.isInitializingSession = true;
+      try {
+        const body: Record<string, unknown> = {};
+        if (config.preset) {
+          body.preset = config.preset;
+        }
+        const response = await this.requestJson<ChatServiceInitResponse>("/init", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        if (!response || !response.id) {
+          throw new Error("Missing chat id in init response");
+        }
+        this.chatId = response.id;
+        this.chatOffsets = { history: 0, text: 0 };
+        this.persistChatId(response.id);
+        this.hasLoadedInitialHistory = false;
+        this.historyContents = [];
+        return true;
+      } catch (error) {
+        console.error("AlbertChat: Initialisierung des Chats fehlgeschlagen.", error);
+        this.showServiceError(
+          "Der Chat konnte nicht gestartet werden. Bitte versuchen Sie es erneut."
+        );
+        this.clearChatSession();
+        return false;
+      } finally {
+        this.isInitializingSession = false;
+      }
+    })();
+
+    this.initializingPromise = promise;
+    const result = await promise;
+    this.initializingPromise = null;
+    return result;
+  }
+
+  private async sendMessageToService(content: string): Promise<void> {
+    if (!this.serviceConfig) {
+      return;
+    }
+    try {
+      await this.ensureChatSessionInitialized();
+    } catch (error) {
+      console.error("AlbertChat: Chat konnte nicht vorbereitet werden.", error);
+      this.markLastUserMessageStatus("failed");
+      this.showServiceError(
+        "Der Chat konnte nicht vorbereitet werden. Bitte versuchen Sie es erneut."
+      );
+      return;
+    }
+    if (!this.chatId) {
+      this.markLastUserMessageStatus("failed");
+      this.showServiceError("Keine gültige Chat-ID verfügbar. Bitte starten Sie den Chat neu.");
+      return;
+    }
+
+    this.hideTypingIndicator();
+    this.clearStreamingTimers({ finalize: true });
+
+    this.isAwaitingAgent = true;
+    this.updateSendAvailability();
+
+    const body: Record<string, unknown> = {
+      id: this.chatId,
+      input: {
+        text: content,
+      },
+      stream: true,
+    };
+    if (this.serviceConfig.preset) {
+      body.preset = this.serviceConfig.preset;
+    }
+
+    try {
+      await this.requestJson<unknown>("/chat", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      this.markLastUserMessageStatus("sent");
+      this.removeFailedUserMessages();
+      this.removeLocalAgentMessages();
+    } catch (error) {
+      console.error("AlbertChat: Nachricht konnte nicht gesendet werden.", error);
+      this.isAwaitingAgent = false;
+      this.updateSendAvailability();
+      this.markLastUserMessageStatus("failed");
+      this.showServiceError(
+        "Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
+      );
+      const status = (error as { status?: number }).status;
+      if (status === 404) {
+        await this.handleSessionExpired(true);
+      }
+      return;
+    }
+
+    this.showTypingIndicator();
+    await this.fetchInfo({ immediate: true });
+  }
+
+  private async fetchInfo(
+    options: { fullRefresh?: boolean; immediate?: boolean } = {}
+  ): Promise<boolean> {
+    if (!this.serviceConfig || !this.chatId) {
+      return false;
+    }
+    if (this.infoFetchPromise) {
+      return this.infoFetchPromise;
+    }
+
+    const { fullRefresh = false } = options;
+    const forceFullRefresh = fullRefresh || this.hasLocalOnlyMessages();
+    const promise = (async (): Promise<boolean> => {
+      try {
+        const path = this.buildInfoPath(forceFullRefresh);
+        const response = await this.requestJson<ChatServiceInfoResponse>(path, { method: "GET" });
+        this.pollFailureCount = 0;
+        this.processInfoResponse(response, { fullRefresh: forceFullRefresh });
+        return true;
+      } catch (error) {
+        console.error("AlbertChat: Abrufen der Chat-Informationen fehlgeschlagen.", error);
+        const status = (error as { status?: number }).status;
+        if (status === 404) {
+          await this.handleSessionExpired(true);
+          return false;
+        }
+        this.pollFailureCount += 1;
+        if (this.pollFailureCount >= MAX_POLL_FAILURES_BEFORE_RESET) {
+          this.stopPolling();
+          this.isAwaitingAgent = false;
+          this.updateSendAvailability();
+          this.showServiceError(
+            "Die Verbindung zum Chat konnte nicht wiederhergestellt werden. Bitte starten Sie neu."
+          );
+        } else {
+          this.scheduleNextPoll();
+        }
+        return false;
+      }
+    })();
+
+    this.infoFetchPromise = promise;
+    const result = await promise;
+    this.infoFetchPromise = null;
+    return result;
+  }
+
+  private processInfoResponse(
+    response: ChatServiceInfoResponse,
+    options: { fullRefresh?: boolean } = {}
+  ): void {
+    if (!response) {
+      return;
+    }
+    if (this.isWelcomeTyping) {
+      const queuedOptions = { ...options };
+      this.runAfterWelcomeAnimation(() => this.processInfoResponse(response, queuedOptions));
+      return;
+    }
+
+    const { fullRefresh = false } = options;
+    const history = response.history ?? [];
+    const shouldRebuild = fullRefresh || this.hasLocalOnlyMessages();
+
+    if (shouldRebuild) {
+      this.hydrateMessagesFromHistory(history);
+      this.removeLocalAgentMessages();
+    } else if (history.length) {
+      const baseIndex = this.chatOffsets ? this.chatOffsets.history : 0;
+      const continuingSameEntry = !!this.chatOffsets && this.chatOffsets.text > 0;
+
+      history.forEach((entry, index) => {
+        const targetIndex = baseIndex + index;
+        const appendExisting = continuingSameEntry && index === 0;
+        this.applyHistoryEntry(targetIndex, entry, { append: appendExisting });
+      });
+    }
+
+    if (response.offsets) {
+      this.chatOffsets = response.offsets;
+    } else if (shouldRebuild) {
+      this.chatOffsets = {
+        history: history.length,
+        text: 0,
+      };
+    } else if (!this.chatOffsets) {
+      this.chatOffsets = {
+        history: this.historyContents.length,
+        text: 0,
+      };
+    }
+
+    this.hasLoadedInitialHistory ||= shouldRebuild || Boolean(history.length);
+
+    if (!shouldRebuild && !this.messages.length && this.messageList && !this.typingIndicator) {
+      this.renderEmptyState();
+    }
+
+    const running = Boolean(response.running);
+    this.isAwaitingAgent = running;
+
+    if (running) {
+      this.scheduleNextPoll();
+    } else {
+      this.hideTypingIndicator();
+      this.stopPolling();
+    }
+
+    if (shouldRebuild) {
+      this.removeFailedUserMessages();
+    }
+    this.ensureWelcomeMessage();
+    this.ensureDisclaimer();
+    this.updateSendAvailability();
+  }
+
+  private applyHistoryEntry(
+    index: number,
+    entry: ChatServiceHistoryEntry,
+    options: { append?: boolean } = {}
+  ): void {
+    const { append = false } = options;
+    const text = decodeHtmlEntities(entry.text ?? "");
+    const timestamp = this.parseTimestamp(entry.dateTime);
+    const role = this.mapServiceRole(entry.role);
+
+    if (append && this.historyContents[index] !== undefined) {
+      if (!text) {
+        return;
+      }
+      const updatedContent = (this.historyContents[index] ?? "") + text;
+      this.historyContents[index] = updatedContent;
+      this.updateMessageContentAt(index, updatedContent, timestamp);
+      this.scrollToBottom({ smooth: true });
+      return;
+    }
+
+    const previousContent = this.historyContents[index] ?? "";
+    const content = text || previousContent;
+    if (!content && !this.messages[index]) {
+      return;
+    }
+    this.historyContents[index] = content;
+    const message: ChatMessage = {
+      role,
+      content,
+      timestamp,
+      status: role === "user" ? "sent" : undefined,
+      localOnly: false,
+    };
+
+    if (this.messages[index]) {
+      this.messages[index] = message;
+      this.updateMessageContentAt(index, content, timestamp);
+    } else {
+      this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
+    }
+    this.scrollToBottom({ smooth: true });
+    this.ensureWelcomeMessage();
+    this.ensureDisclaimer();
+  }
+
+  private scheduleNextPoll(delay?: number): void {
+    if (!this.serviceConfig || this.isTerminated) {
+      return;
+    }
+    if (this.pollTimerId !== null) {
+      window.clearTimeout(this.pollTimerId);
+      this.pollTimerId = null;
+    }
+    const interval = delay ?? this.serviceConfig.pollIntervalMs;
+    this.pollTimerId = window.setTimeout(() => {
+      this.pollTimerId = null;
+      void this.fetchInfo();
+    }, Math.max(0, interval));
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimerId !== null) {
+      window.clearTimeout(this.pollTimerId);
+      this.pollTimerId = null;
+    }
+  }
+
+  private buildInfoPath(fullRefresh: boolean): string {
+    if (!this.chatId) {
+      throw new Error("Chat-ID fehlt");
+    }
+    const base = `/info/${encodeURIComponent(this.chatId)}`;
+    if (fullRefresh || !this.chatOffsets) {
+      return base;
+    }
+    const params = new URLSearchParams();
+    params.set("offsetHistory", String(this.chatOffsets.history));
+    params.set("offsetText", String(this.chatOffsets.text));
+    const query = params.toString();
+    return query ? `${base}?${query}` : base;
+  }
+
+  private buildServiceUrl(path: string): string {
+    if (!this.serviceConfig) {
+      throw new Error("Servicekonfiguration fehlt");
+    }
+    const suffix = path.startsWith("/") ? path : `/${path}`;
+    return `${this.serviceConfig.endpoint}${suffix}`;
+  }
+
+  private async requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const url = this.buildServiceUrl(path);
+    const headers = new Headers(init.headers ?? {});
+    if (!headers.has("Accept")) {
+      headers.set("Accept", "application/json");
+    }
+    if (init.body !== undefined && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const response = await fetch(url, { ...init, headers });
+    const contentType = response.headers.get("content-type") || "";
+
+    let payload: unknown;
+    if (contentType.includes("application/json")) {
+      try {
+        payload = await response.json();
+      } catch {
+        payload = undefined;
+      }
+    } else {
+      try {
+        payload = await response.text();
+      } catch {
+        payload = undefined;
+      }
+    }
+
+    if (!response.ok) {
+      const error = new Error(`Chat service request failed with status ${response.status}`);
+      (error as { status?: number }).status = response.status;
+      (error as { payload?: unknown }).payload = payload;
+      throw error;
+    }
+
+    return (payload as T) ?? ({} as T);
+  }
+
+  private parseTimestamp(value?: string): Date {
+    if (!value) {
+      return new Date();
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return new Date();
+    }
+    return date;
+  }
+
+  private mapServiceRole(role: string): ChatRole {
+    const normalized = role ? role.toLowerCase() : "";
+    if (normalized === "user" || normalized === "human") {
+      return "user";
+    }
+    return "agent";
+  }
+
+  private showServiceError(message: string): void {
+    if (this.isTerminated) {
+      return;
+    }
+    const lastMessage = this.messages[this.messages.length - 1];
+    if (lastMessage && lastMessage.role === "agent" && lastMessage.content === message) {
+      return;
+    }
+    this.enqueueAgentMessage(message, false, { localOnly: true });
+    this.ensureDisclaimer();
+  }
+
+  private async handleSessionExpired(showMessage = false): Promise<void> {
+    this.stopPolling();
+    this.clearChatSession();
+    if (this.options.requirePrivacyConsent) {
+      this.isConsentGranted = true;
+    }
+    if (showMessage) {
+      this.showServiceError(
+        "Die Unterhaltung ist nicht mehr verfügbar. Ein neuer Chat wird gestartet."
+      );
+    } else {
+      this.messages = [];
+      this.messageElements = [];
+      this.historyContents = [];
+      this.clearMessageList();
+      this.renderEmptyState();
+    }
+    this.ensureDisclaimer();
+    if (!this.isTerminated) {
+      await this.ensureChatSessionInitialized();
+    }
   }
 
   private streamAgentMessage(content: string): void {
@@ -1546,9 +3057,10 @@ export class ChatWidget {
     }
 
     const timestamp = new Date();
+    const normalizedContent = decodeHtmlEntities(content);
     const message: ChatMessage = {
       role: "agent",
-      content,
+      content: normalizedContent,
       timestamp,
     };
     this.messages.push(message);
@@ -1557,6 +3069,7 @@ export class ChatWidget {
     if (!elements) {
       return;
     }
+    this.messageElements.push(elements);
 
     const { bubble, timestamp: metadata, wrapper } = elements;
     wrapper.classList.add("acw-message-streaming");
@@ -1564,10 +3077,12 @@ export class ChatWidget {
     this.streamingMessageTimestamp = metadata;
     this.streamingMessageWrapper = wrapper;
     this.currentStreamingMessage = message;
+    const contentContainer = bubble.querySelector<HTMLElement>(".acw-typing-content");
+    const cursor = bubble.querySelector<HTMLSpanElement>(".acw-typing-cursor");
     metadata.textContent = "";
     this.scrollToBottom({ smooth: true });
 
-    const characters = Array.from(content);
+    const characters = Array.from(normalizedContent);
     let index = 0;
     const chunkSize = characters.length > 120 ? 3 : characters.length > 60 ? 2 : 1;
     const intervalMs = characters.length > 80 ? 20 : 35;
@@ -1577,7 +3092,13 @@ export class ChatWidget {
         return;
       }
       index = Math.min(characters.length, index + chunkSize);
-      this.streamingMessageBubble.textContent = characters.slice(0, index).join("");
+      const nextContent = characters.slice(0, index).join("");
+      if (contentContainer && cursor) {
+        contentContainer.textContent = nextContent;
+        this.attachTypingCursor(contentContainer, cursor);
+      } else {
+        this.streamingMessageBubble.textContent = nextContent;
+      }
       this.scrollToBottom({ smooth: true });
       if (index >= characters.length) {
         this.clearStreamingTimers({ finalize: true });
@@ -1589,6 +3110,12 @@ export class ChatWidget {
   }
 
   private simulateAgentReply(): void {
+    if (this.serviceConfig) {
+      return;
+    }
+    this.markLastUserMessageStatus("sent");
+    this.removeFailedUserMessages();
+    this.removeLocalAgentMessages();
     if (!this.options.mockResponses.length) {
       this.isAwaitingAgent = false;
       this.updateSendAvailability();
@@ -1610,7 +3137,6 @@ export class ChatWidget {
       this.activeStreamTimeout = null;
       const response = this.options.mockResponses[this.mockResponseIndex];
       this.mockResponseIndex = (this.mockResponseIndex + 1) % this.options.mockResponses.length;
-      this.hideTypingIndicator();
       this.streamAgentMessage(response);
     }, delay);
   }

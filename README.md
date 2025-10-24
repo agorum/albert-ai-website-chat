@@ -35,11 +35,31 @@ npm test          # optional: End-to-End-Test mit Playwright
     <script defer src="./dist/index.global.js"></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
+        const serviceEndpoint =
+          window.location.hostname === 'localhost'
+            ? 'http://localhost:8010'
+            : 'https://www.agorum.com/albert/chat';
+
         AlbertChat.init({
           texts: {
             headerTitle: 'Albert Demo',
             headerSubtitle: 'Stellen Sie Ihre Fragen',
             teaserText: 'Fragen Sie uns – wir helfen gerne!',
+          },
+          serviceConfig: {
+            endpoint: serviceEndpoint,
+            preset: 'albert',
+          },
+          welcomeMessage: {
+            enabled: true,
+            text: 'Hallo! Wie kann ich Ihnen helfen? ✨',
+          },
+          disclaimer: {
+            enabled: true,
+            text: 'Hinweis: Albert kann Fehler machen – bitte überprüfen Sie wichtige Aussagen.',
+            styles: {
+              fontSize: '0.7rem',
+            },
           },
           theme: {
             primaryColor: '#9333ea',
@@ -75,14 +95,27 @@ npm test          # optional: End-to-End-Test mit Playwright
 ```ts
 import { init } from 'albert-chat-widget';
 
+const endpoint =
+  typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://localhost:8010'
+    : 'https://www.agorum.com/albert/chat';
+
 init({
   texts: {
     launcherLabel: 'Frag Albert',
   },
-  mockResponses: [
-    'Hallo! Ich beantworte gerne Ihre Fragen.',
-    'Dies ist eine simulierte Antwort. Später kommt hier der REST-Call.',
-  ],
+  serviceConfig: {
+    endpoint,
+    preset: 'albert',
+  },
+  welcomeMessage: {
+    enabled: true,
+    text: 'Willkommen zurück! Ich bin bereit. 🤖',
+  },
+  disclaimer: {
+    enabled: true,
+    text: 'Hinweis: Antworten werden automatisch generiert.',
+  },
 });
 ```
 
@@ -137,6 +170,24 @@ interface ChatWidgetOptions {
     reloadIcon: string;
     launcherIcon: string;
     sendIcon: string;
+  };
+  serviceConfig?: {
+    endpoint: string;
+    preset?: string;
+    pollIntervalMs?: number;
+    storageKey?: string;
+  };
+  welcomeMessage?: {
+    enabled: boolean;
+    text?: string;
+    className?: string;
+    styles?: Record<string, string>;
+  };
+  disclaimer?: {
+    enabled: boolean;
+    text: string;
+    className?: string;
+    styles?: Record<string, string>;
   };
   footerLinks: Array<{ label: string; href: string; target?: string; rel?: string }>;
   dimensions: {

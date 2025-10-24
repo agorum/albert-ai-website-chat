@@ -60,7 +60,16 @@
     <script src="../dist/index.global.js" defer></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
+        const serviceEndpoint =
+          window.location.hostname === 'localhost'
+            ? 'http://localhost:8010'
+            : 'https://www.agorum.com/albert/chat';
+
         AlbertChat.init({
+          serviceConfig: {
+            endpoint: serviceEndpoint,
+            preset: 'albert',
+          },
           texts: {
             headerTitle: 'Albert Support',
             headerSubtitle: 'Wir helfen Ihnen gerne weiter',
@@ -80,6 +89,12 @@
             { label: 'AGB', href: 'https://example.com/agb', target: '_blank' },
           ],
           teaserDelayMs: 5000,
+          dimensions: {
+            widthPercent: 33,
+            minWidthPx: 320,
+            heightPercent: 70,
+            minHeightPx: 420,
+          },
           mockResponses: [
             'Hallo! Ich bin der AI-Assistent Albert – wie kann ich helfen?',
             'Das ist aktuell eine simulierte Antwort. Bald kommt hier Ihr Backend ins Spiel.',

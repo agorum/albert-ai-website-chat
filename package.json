@@ -28,5 +28,8 @@
     "globalName": "AlbertChat",
     "outDir": "dist",
     "clean": true
+  },
+  "dependencies": {
+    "marked": "^12.0.2"
   }
 }

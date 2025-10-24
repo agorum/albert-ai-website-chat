@@ -50,8 +50,17 @@
     <script src="../dist/index.global.js" defer></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
+        const serviceEndpoint =
+          window.location.hostname === 'localhost'
+            ? 'http://localhost:8010'
+            : 'https://www.agorum.com/albert/chat';
+
         AlbertChat.init({
           target: document.body,
+          serviceConfig: {
+            endpoint: serviceEndpoint,
+            preset: 'albert',
+          },
           theme: {
             fontFamily: "'Inter', system-ui, sans-serif",
             primaryColor: '#0ea5e9',
@@ -107,7 +116,7 @@
             { label: 'Impressum', href: 'https://example.com/impressum', target: '_blank' },
           ],
           dimensions: {
-            widthPercent: 32,
+            widthPercent: 33,
             minWidthPx: 320,
             heightPercent: 70,
             minHeightPx: 420,
