@@ -1668,7 +1668,7 @@ export class ChatWidget {
       .acw-disclaimer {
         font-size: 0.75rem;
         color: rgba(15, 23, 42, 0.55);
-        margin: var(--acw-spacing-xs) auto 0 var(--acw-spacing-sm);
+        margin: var(--acw-spacing-xs) auto 0 0;
         padding: 0;
         align-self: flex-start;
         max-width: 85%;
