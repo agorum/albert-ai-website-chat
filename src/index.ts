@@ -56,6 +56,7 @@ export interface ChatWidgetTexts {
   sendWhileStreamingTooltip: string;
   sendWhileConsentPendingTooltip: string;
   sendWhileTerminatedTooltip: string;
+  toolCallPlaceholder: string;
 }
 
 export interface ChatWidgetIcons {
@@ -97,6 +98,7 @@ export interface ChatMessage {
   timestamp: Date;
   status?: "pending" | "sent" | "failed";
   localOnly?: boolean;
+  isToolPlaceholder?: boolean;
 }
 
 export interface ChatServiceConfig {
@@ -129,6 +131,7 @@ interface ChatServiceHistoryEntry {
   role: string;
   text?: string;
   dateTime?: string;
+  isToolCall?: boolean;
 }
 
 interface ChatServiceInfoResponse {
@@ -203,6 +206,7 @@ const defaultOptions: ChatWidgetOptions = {
     sendWhileConsentPendingTooltip:
       "Senden ist erst möglich, nachdem Sie der Datenschutzerklärung zugestimmt haben.",
     sendWhileTerminatedTooltip: "Der Chat ist deaktiviert. Starten Sie ihn neu, um es erneut zu versuchen.",
+    toolCallPlaceholder: "Recherchiere...",
   },
   icons: {
     headerIcon: "💡",
@@ -463,6 +467,8 @@ export class ChatWidget {
   private typingIndicatorCursor?: HTMLSpanElement;
   private typingIndicatorTimestamp?: HTMLSpanElement;
   private typingIndicatorIsStandalone = false;
+  private toolActivityIndicator?: HTMLDivElement;
+  private pendingToolCall: { anchorIndex: number | null } | null = null;
   private isOpen = false;
   private hasEverOpened = false;
   private messages: ChatMessage[] = [];
@@ -565,6 +571,9 @@ export class ChatWidget {
     this.clearStreamingTimers();
     this.stopPolling();
     this.hideTypingIndicator();
+    this.hideToolActivityIndicator();
+    this.toolActivityIndicator = undefined;
+    this.pendingToolCall = null;
     window.removeEventListener("resize", this.handleWindowResize);
     if (this.messageList) {
       this.messageList.removeEventListener("scroll", this.handleMessagesScroll);
@@ -625,6 +634,7 @@ export class ChatWidget {
     this.messages = [];
     this.messageElements = [];
     this.historyContents = [];
+    this.pendingToolCall = null;
     this.hasLoadedInitialHistory = false;
     this.mockResponseIndex = 0;
     this.cancelWelcomeAnimationCallbacks();
@@ -643,6 +653,7 @@ export class ChatWidget {
         this.isConsentGranted = false;
       }
     }
+    this.hideToolActivityIndicator();
     this.renderInitialState();
   }
 
@@ -699,6 +710,9 @@ export class ChatWidget {
     this.welcomeAnimationHasRun = false;
     this.cancelWelcomeAnimationCallbacks();
     this.welcomeAnimationPlayedOnce = false;
+    this.pendingToolCall = null;
+    this.hideToolActivityIndicator();
+    this.toolActivityIndicator = undefined;
     this.resetTypingIndicatorState();
   }
 
@@ -757,6 +771,9 @@ export class ChatWidget {
     this.messageList.innerHTML = "";
     this.disclaimerElement = undefined;
     this.welcomeMessageElement = undefined;
+    this.pendingToolCall = null;
+    this.hideToolActivityIndicator();
+    this.toolActivityIndicator = undefined;
     this.resetTypingIndicatorState();
     const wasTyping = this.isWelcomeTyping;
     if (this.welcomeMessageTypingTimer !== null) {
@@ -1303,8 +1320,20 @@ export class ChatWidget {
     }
     this.messages.splice(index, 1);
     this.messageElements.splice(index, 1);
+    if (this.pendingToolCall) {
+      const anchorIndex = this.pendingToolCall.anchorIndex;
+      if (anchorIndex !== null) {
+        if (anchorIndex === index) {
+          this.pendingToolCall = null;
+          this.hideToolActivityIndicator();
+        } else if (anchorIndex > index) {
+          this.pendingToolCall = { anchorIndex: anchorIndex - 1 };
+        }
+      }
+    }
     this.ensureDisclaimer();
     this.ensureWelcomeMessage();
+    this.updateToolActivityIndicator();
   }
 
   private removeFailedUserMessages(): void {
@@ -1343,19 +1372,31 @@ export class ChatWidget {
       this.clearMessageList();
     }
 
+    let pendingToolCall: { anchorIndex: number | null } | null = null;
     history.forEach((entry) => {
       const role = this.mapServiceRole(entry.role);
-      const content = decodeHtmlEntities(entry.text ?? "");
+      const rawText = entry.text ?? "";
+      const decodedText = decodeHtmlEntities(rawText);
+      const trimmedText = decodedText.trim();
+      const isToolCall = Boolean(entry.isToolCall);
+      const hasRenderableText = trimmedText.length > 0;
       const message: ChatMessage = {
         role,
-        content,
+        content: hasRenderableText ? decodedText : "",
         timestamp: this.parseTimestamp(entry.dateTime),
         status: role === "user" ? "sent" : undefined,
         localOnly: false,
+        isToolPlaceholder: isToolCall && !hasRenderableText,
       };
-      this.historyContents.push(content);
+      this.historyContents.push(decodedText);
       this.addMessage(message, { autoScroll: false });
+      if (message.isToolPlaceholder) {
+        pendingToolCall = { anchorIndex: this.messages.length - 1 };
+      } else if (hasRenderableText) {
+        pendingToolCall = null;
+      }
     });
+    this.pendingToolCall = pendingToolCall;
 
     if (this.messageList) {
       this.scrollToBottom({ smooth: false, force: true });
@@ -1363,6 +1404,7 @@ export class ChatWidget {
 
     this.ensureWelcomeMessage();
     this.ensureDisclaimer();
+    this.updateToolActivityIndicator();
   }
 
   private resolveTarget(): HTMLElement {
@@ -1590,6 +1632,13 @@ export class ChatWidget {
         background: var(--acw-agent-message-color);
         color: var(--acw-agent-text-color);
         border-bottom-left-radius: 4px;
+      }
+      .acw-message-tool-placeholder-hidden {
+        display: none !important;
+      }
+      .acw-tool-indicator .acw-bubble {
+        font-style: italic;
+        color: rgba(15, 23, 42, 0.55);
       }
       .acw-message-pending .acw-bubble {
         opacity: 0.85;
@@ -2346,6 +2395,13 @@ export class ChatWidget {
       this.scrollToBottom({ smooth, force: forceScroll });
     }
     this.ensureDisclaimer();
+    if (message.isToolPlaceholder) {
+      elements.wrapper.classList.add("acw-message-tool-placeholder-hidden");
+      elements.bubble.textContent = "";
+      elements.timestamp.textContent = "";
+    } else {
+      elements.wrapper.classList.remove("acw-message-tool-placeholder-hidden");
+    }
     if (reusedTypingIndicator) {
       // Keep the typing indicator references linked to the active message until it completes.
       this.typingIndicator = elements.wrapper;
@@ -2380,6 +2436,13 @@ export class ChatWidget {
         this.attachTypingCursor(typingContent, typingCursor);
       } else {
         refs.bubble.innerHTML = this.renderMessageHtml(message);
+      }
+      if (message.isToolPlaceholder) {
+        refs.wrapper.classList.add("acw-message-tool-placeholder-hidden");
+        refs.bubble.textContent = "";
+        refs.timestamp.textContent = "";
+      } else {
+        refs.wrapper.classList.remove("acw-message-tool-placeholder-hidden");
       }
       if (timestamp) {
         refs.timestamp.textContent = formatTime(timestamp, this.options.locale);
@@ -2497,6 +2560,71 @@ export class ChatWidget {
       return;
     }
     element.appendChild(cursor);
+  }
+
+  private createToolActivityIndicator(): HTMLDivElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "acw-message acw-message-agent acw-tool-indicator";
+    wrapper.setAttribute("aria-live", "polite");
+    const bubble = document.createElement("div");
+    bubble.className = "acw-bubble";
+    bubble.textContent = this.options.texts.toolCallPlaceholder;
+    wrapper.appendChild(bubble);
+    return wrapper;
+  }
+
+  private showToolActivityIndicator(anchorIndex: number | null): void {
+    if (!this.messageList) {
+      return;
+    }
+    if (!this.toolActivityIndicator) {
+      this.toolActivityIndicator = this.createToolActivityIndicator();
+    }
+    const bubble = this.toolActivityIndicator.querySelector<HTMLDivElement>(".acw-bubble");
+    if (bubble) {
+      bubble.textContent = this.options.texts.toolCallPlaceholder;
+    }
+    const indicator = this.toolActivityIndicator;
+    if (indicator.parentElement && indicator.parentElement !== this.messageList) {
+      indicator.parentElement.removeChild(indicator);
+    }
+
+    let referenceNode: Node | null = null;
+    if (typeof anchorIndex === "number" && anchorIndex >= 0) {
+      const anchorRefs = this.messageElements[anchorIndex];
+      if (anchorRefs?.wrapper?.parentElement === this.messageList) {
+        referenceNode = anchorRefs.wrapper.nextSibling;
+      }
+    }
+    if (!referenceNode && this.typingIndicator && this.typingIndicator.parentElement === this.messageList) {
+      referenceNode = this.typingIndicator;
+    }
+    if (!referenceNode && this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
+      referenceNode = this.disclaimerElement;
+    }
+    if (referenceNode) {
+      this.messageList.insertBefore(indicator, referenceNode);
+    } else if (indicator.parentElement !== this.messageList) {
+      this.messageList.appendChild(indicator);
+    }
+  }
+
+  private hideToolActivityIndicator(): void {
+    if (this.toolActivityIndicator?.parentElement) {
+      this.toolActivityIndicator.parentElement.removeChild(this.toolActivityIndicator);
+    }
+  }
+
+  private updateToolActivityIndicator(): void {
+    if (!this.messageList) {
+      this.hideToolActivityIndicator();
+      return;
+    }
+    if (!this.isAwaitingAgent || !this.pendingToolCall) {
+      this.hideToolActivityIndicator();
+      return;
+    }
+    this.showToolActivityIndicator(this.pendingToolCall.anchorIndex);
   }
 
   private showTypingIndicator(): void {
@@ -2852,6 +2980,9 @@ export class ChatWidget {
 
     const running = Boolean(response.running);
     this.isAwaitingAgent = running;
+    if (!running) {
+      this.pendingToolCall = null;
+    }
 
     if (running) {
       this.scheduleNextPoll();
@@ -2866,6 +2997,7 @@ export class ChatWidget {
     this.ensureWelcomeMessage();
     this.ensureDisclaimer();
     this.updateSendAvailability();
+    this.updateToolActivityIndicator();
   }
 
   private applyHistoryEntry(
@@ -2874,44 +3006,93 @@ export class ChatWidget {
     options: { append?: boolean } = {}
   ): void {
     const { append = false } = options;
-    const text = decodeHtmlEntities(entry.text ?? "");
+    const rawText = entry.text ?? "";
+    const decodedText = decodeHtmlEntities(rawText);
     const timestamp = this.parseTimestamp(entry.dateTime);
     const role = this.mapServiceRole(entry.role);
+    const isToolCall = Boolean(entry.isToolCall);
+    const existingContent = this.historyContents[index] ?? "";
+    const baseContent = decodedText || existingContent;
+    const hasRenderableText = baseContent.trim().length > 0;
 
     if (append && this.historyContents[index] !== undefined) {
-      if (!text) {
+      if (!decodedText) {
         return;
       }
-      const updatedContent = (this.historyContents[index] ?? "") + text;
+      const updatedContent = (this.historyContents[index] ?? "") + decodedText;
       this.historyContents[index] = updatedContent;
-      this.updateMessageContentAt(index, updatedContent, timestamp);
+      if (this.messages[index]) {
+        const existing = this.messages[index];
+        const updatedMessage: ChatMessage = {
+          ...existing,
+          role,
+          content: updatedContent,
+          timestamp,
+          status: role === "user" ? "sent" : existing?.status,
+          localOnly: false,
+          isToolPlaceholder: false,
+        };
+        this.messages[index] = updatedMessage;
+        this.updateMessageContentAt(index, updatedContent, timestamp);
+      } else {
+        const message: ChatMessage = {
+          role,
+          content: updatedContent,
+          timestamp,
+          status: role === "user" ? "sent" : undefined,
+          localOnly: false,
+          isToolPlaceholder: false,
+        };
+        this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
+      }
+      if (updatedContent.trim().length > 0) {
+        this.pendingToolCall = null;
+      }
       this.scrollToBottom({ smooth: true });
+      this.ensureWelcomeMessage();
+      this.ensureDisclaimer();
+      this.updateToolActivityIndicator();
       return;
     }
 
-    const previousContent = this.historyContents[index] ?? "";
-    const content = text || previousContent;
-    if (!content && !this.messages[index]) {
-      return;
-    }
-    this.historyContents[index] = content;
-    const message: ChatMessage = {
-      role,
-      content,
-      timestamp,
-      status: role === "user" ? "sent" : undefined,
-      localOnly: false,
-    };
-
+    this.historyContents[index] = baseContent;
+    const shouldShowPlaceholder = isToolCall && !hasRenderableText;
+    let targetIndex = index;
     if (this.messages[index]) {
-      this.messages[index] = message;
-      this.updateMessageContentAt(index, content, timestamp);
+      const updatedMessage: ChatMessage = {
+        ...this.messages[index],
+        role,
+        content: hasRenderableText ? baseContent : "",
+        timestamp,
+        status: role === "user" ? "sent" : this.messages[index]?.status,
+        localOnly: false,
+        isToolPlaceholder: shouldShowPlaceholder,
+      };
+      this.messages[index] = updatedMessage;
+      this.updateMessageContentAt(index, updatedMessage.content, timestamp);
     } else {
+      const message: ChatMessage = {
+        role,
+        content: hasRenderableText ? baseContent : "",
+        timestamp,
+        status: role === "user" ? "sent" : undefined,
+        localOnly: false,
+        isToolPlaceholder: shouldShowPlaceholder,
+      };
       this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
+      targetIndex = this.messages.length - 1;
     }
+
+    if (shouldShowPlaceholder) {
+      this.pendingToolCall = { anchorIndex: targetIndex };
+    } else if (hasRenderableText) {
+      this.pendingToolCall = null;
+    }
+
     this.scrollToBottom({ smooth: true });
     this.ensureWelcomeMessage();
     this.ensureDisclaimer();
+    this.updateToolActivityIndicator();
   }
 
   private scheduleNextPoll(delay?: number): void {
