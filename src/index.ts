@@ -1534,6 +1534,7 @@ export class ChatWidget {
    * Rebuilds the local message arrays from a server-provided history snapshot.
    */
   private hydrateMessagesFromHistory(history: ChatServiceHistoryEntry[]): void {
+    console.log('[hydrateMessagesFromHistory] REBUILDING ALL MESSAGES');
     this.messages = [];
     this.messageElements = [];
     this.historyContents = [];
@@ -1577,6 +1578,12 @@ export class ChatWidget {
         localOnly: false,
         isToolPlaceholder,
       };
+      
+      // Debug logging for toolCalls
+      if (isToolCall) {
+        console.log(`[hydrate] Index ${index}: isToolCall=${isToolCall}, hasText=${hasRenderableText}, isPlaceholder=${isToolPlaceholder}, text="${trimmedText.substring(0, 50)}"`);
+      }
+      
       this.historyContents.push(decodedText);
       this.addMessage(message, { autoScroll: false });
       
@@ -3506,6 +3513,10 @@ export class ChatWidget {
     const timestamp = this.parseTimestamp(entry.dateTime);
     const role = this.mapServiceRole(entry.role);
     const isToolCall = Boolean(entry.isToolCall);
+    
+    if (isToolCall) {
+      console.log(`[applyHistoryEntry] Index ${index}: isToolCall=${isToolCall}, text="${decodedText.substring(0, 50)}", append=${append}, isStreaming=${isStreaming}`);
+    }
     
     // Get existing content from both sources
     const existingHistoryContent = this.historyContents[index] ?? "";
