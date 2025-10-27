@@ -1393,9 +1393,12 @@ export class ChatWidget {
     this.messages.push(message);
     // Placeholder entries reserve history positions but should not render a bubble until text exists.
     // Also don't render normal messages without text (wait until text arrives)
+    // EXCEPT when it's an agent message and we're currently streaming (then show with typing cursor)
     let elements: MessageElementRefs | null = null;
     const hasText = message.content.trim().length > 0;
-    if (!message.isToolPlaceholder && hasText) {
+    const isStreamingAgent = this.isAwaitingAgent && message.role === "agent";
+    
+    if (!message.isToolPlaceholder && (hasText || isStreamingAgent)) {
       elements = this.appendMessageElement(message, options);
       if (elements) {
         this.applyMessageStatus(elements.wrapper, message);
@@ -2690,10 +2693,18 @@ export class ChatWidget {
     }
     const message = this.messages[index];
     // Ignore placeholder messages: they intentionally have no rendered bubble yet.
-    // Also ignore messages without text content.
-    if (!message || message.isToolPlaceholder || message.content.trim().length === 0) {
+    if (!message || message.isToolPlaceholder) {
       return null;
     }
+    
+    const hasText = message.content.trim().length > 0;
+    const isStreaming = this.isAwaitingAgent && message.role === "agent";
+    
+    // Don't render messages without text, unless they are currently being streamed
+    if (!hasText && !isStreaming) {
+      return null;
+    }
+    
     const existing = this.messageElements[index];
     if (existing?.wrapper && existing.wrapper.parentElement === this.messageList) {
       return existing;
@@ -2701,6 +2712,32 @@ export class ChatWidget {
 
     // Build the DOM node on demand so chronological order stays intact even after lazy creation.
     const elements = this.buildMessageElement(message);
+    
+    // Add typing indicator if this is an agent message being streamed
+    if (isStreaming && message.role === "agent") {
+      const bubble = elements.bubble;
+      bubble.classList.add("acw-bubble-typing");
+      elements.wrapper.classList.add("acw-typing");
+      
+      const content = document.createElement("div");
+      content.className = "acw-typing-content";
+      content.innerHTML = bubble.innerHTML;
+      bubble.innerHTML = "";
+      bubble.appendChild(content);
+      
+      const cursor = document.createElement("span");
+      cursor.className = "acw-typing-cursor";
+      bubble.appendChild(cursor);
+      this.attachTypingCursor(content, cursor);
+      
+      // Update typing indicator references
+      this.typingIndicator = elements.wrapper;
+      this.typingIndicatorContent = content;
+      this.typingIndicatorCursor = cursor;
+      this.typingIndicatorTimestamp = elements.timestamp;
+      this.typingIndicatorIsStandalone = false;
+    }
+    
     const referenceNode = this.findNextMessageNode(index);
     if (referenceNode) {
       this.messageList.insertBefore(elements.wrapper, referenceNode);
@@ -2982,7 +3019,12 @@ export class ChatWidget {
    * Displays the animated typing indicator message bubble while streaming agent content.
    */
   private showTypingIndicator(): void {
-    if (!this.messageList || this.typingIndicator) {
+    // If typing indicator already exists, nothing to do
+    if (this.typingIndicator) {
+      return;
+    }
+    
+    if (!this.messageList) {
       return;
     }
     
@@ -2991,41 +3033,45 @@ export class ChatWidget {
       return;
     }
     
-    const indicator = document.createElement("div");
-    indicator.className = "acw-message acw-message-agent acw-typing";
-    indicator.setAttribute("aria-live", "polite");
-
-    const bubble = document.createElement("div");
-    bubble.className = "acw-bubble acw-bubble-typing";
-
-    const content = document.createElement("div");
-    content.className = "acw-typing-content";
-    bubble.appendChild(content);
-
-    const cursor = document.createElement("span");
-    cursor.className = "acw-typing-cursor";
-    bubble.appendChild(cursor);
-    this.attachTypingCursor(content, cursor);
-
-    const metadata = document.createElement("span");
-    metadata.className = "acw-timestamp";
-    metadata.textContent = "";
-
-    indicator.appendChild(bubble);
-    indicator.appendChild(metadata);
-
-    if (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
-      this.messageList.insertBefore(indicator, this.disclaimerElement);
-    } else {
-      this.messageList.appendChild(indicator);
+    // Check if the last message is already an agent message that can show the cursor
+    const lastMessage = this.messages[this.messages.length - 1];
+    if (lastMessage && lastMessage.role === "agent" && !lastMessage.isToolPlaceholder) {
+      // Try to add typing cursor to the last agent message instead of creating a new bubble
+      const lastMessageRefs = this.messageElements[this.messages.length - 1];
+      if (lastMessageRefs?.bubble) {
+        const bubble = lastMessageRefs.bubble;
+        
+        // Check if it doesn't already have a typing cursor
+        if (!bubble.querySelector(".acw-typing-cursor")) {
+          bubble.classList.add("acw-bubble-typing");
+          lastMessageRefs.wrapper.classList.add("acw-typing");
+          
+          const content = document.createElement("div");
+          content.className = "acw-typing-content";
+          content.innerHTML = bubble.innerHTML;
+          bubble.innerHTML = "";
+          bubble.appendChild(content);
+          
+          const cursor = document.createElement("span");
+          cursor.className = "acw-typing-cursor";
+          bubble.appendChild(cursor);
+          this.attachTypingCursor(content, cursor);
+          
+          this.typingIndicator = lastMessageRefs.wrapper;
+          this.typingIndicatorContent = content;
+          this.typingIndicatorCursor = cursor;
+          this.typingIndicatorTimestamp = lastMessageRefs.timestamp;
+          this.typingIndicatorIsStandalone = false;
+          
+          this.scrollToBottom({ smooth: true });
+          return;
+        }
+      }
     }
-
-    this.typingIndicator = indicator;
-    this.typingIndicatorContent = content;
-    this.typingIndicatorCursor = cursor;
-    this.typingIndicatorTimestamp = metadata;
-    this.typingIndicatorIsStandalone = true;
-    this.scrollToBottom({ smooth: true });
+    
+    // If we get here, there's no suitable message to attach the cursor to
+    // This means we're waiting for a completely new message
+    // Don't create a standalone indicator - wait for the message to arrive
   }
 
   /**
