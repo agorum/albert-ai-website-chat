@@ -3587,7 +3587,15 @@ export class ChatWidget {
 
     if (append && this.historyContents[index] !== undefined) {
       // Streaming chunk: extend the existing text buffer and update the rendered message.
-      const updatedContent = (this.historyContents[index] ?? "") + decodedText;
+      // For toolCalls, don't append empty text - keep the cached version
+      let updatedContent: string;
+      if (isToolCall && decodedText.trim().length === 0) {
+        // ToolCall with no new text - use cached text
+        updatedContent = effectiveDecodedText;
+      } else {
+        // Normal append or new text
+        updatedContent = (this.historyContents[index] ?? "") + decodedText;
+      }
       const trimmedUpdatedContent = updatedContent.trim();
       this.historyContents[index] = updatedContent;
       
@@ -3696,11 +3704,16 @@ export class ChatWidget {
       const messageHasText = newContent.trim().length > 0;
       const shouldShowMessage = messageHasText || shouldShowPlaceholder || (role === "agent" && isStreaming);
       
+      if (isToolCall) {
+        console.log(`[DISPLAY] Index ${index}: messageHasText=${messageHasText}, shouldShowPlaceholder=${shouldShowPlaceholder}, shouldShowMessage=${shouldShowMessage}, newContent="${newContent.substring(0, 50)}"`);
+      }
+      
       if (shouldShowMessage) {
         // Show or update the message
         this.updateMessageContentAt(index, updatedMessage.content, timestamp);
       } else {
         // Only remove if it's a toolCall without text and we shouldn't show placeholder
+        console.warn(`[REMOVING] Index ${index}: Removing message element!`);
         const existingRefs = this.messageElements[index];
         if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
           existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
