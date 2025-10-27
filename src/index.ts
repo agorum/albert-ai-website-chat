@@ -3410,7 +3410,8 @@ export class ChatWidget {
 
     const { fullRefresh = false } = options;
     const history = response.history ?? [];
-    const shouldRebuild = fullRefresh || this.hasLocalOnlyMessages();
+    // Don't rebuild during streaming to preserve typing indicator state
+    const shouldRebuild = !this.isAwaitingAgent && (fullRefresh || this.hasLocalOnlyMessages());
 
     if (shouldRebuild) {
       this.hydrateMessagesFromHistory(history);
