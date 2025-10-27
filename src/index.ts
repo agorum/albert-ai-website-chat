@@ -3439,9 +3439,20 @@ export class ChatWidget {
     const history = response.history ?? [];
     const running = Boolean(response.running);
     
-    // Never rebuild if we're just transitioning from streaming to not streaming
-    // to preserve toolCalls with text
-    const shouldRebuild = fullRefresh || (!running && this.hasLocalOnlyMessages() && !this.isAwaitingAgent);
+    // Track if we just finished streaming to prevent rebuild
+    const justFinishedStreaming = !running && this.isAwaitingAgent;
+    
+    // Only rebuild if explicitly requested OR we have local messages AND we're not streaming
+    // Never rebuild when just transitioning from streaming to not-streaming
+    const shouldRebuild = (fullRefresh || this.hasLocalOnlyMessages()) && !running && !justFinishedStreaming;
+    
+    console.log('[processInfoResponse]', { 
+      running, 
+      isAwaitingAgent: this.isAwaitingAgent,
+      justFinishedStreaming,
+      shouldRebuild,
+      hasLocalOnly: this.hasLocalOnlyMessages()
+    });
 
     if (shouldRebuild) {
       this.hydrateMessagesFromHistory(history);
@@ -3524,8 +3535,8 @@ export class ChatWidget {
     const existingContent = existingHistoryContent || existingMessageContent;
     
     // Use new text if available, otherwise keep existing
-    const baseContent = decodedText || existingContent;
-    const hasRenderableText = baseContent.trim().length > 0;
+    let baseContent = decodedText || existingContent;
+    let hasRenderableText = baseContent.trim().length > 0;
 
     if (append && this.historyContents[index] !== undefined) {
       // Streaming chunk: extend the existing text buffer and update the rendered message.
@@ -3594,6 +3605,25 @@ export class ChatWidget {
     // Fresh or replaced entry: store the full text snapshot
     // Always store the baseContent which includes existing text if no new text came
     this.historyContents[index] = baseContent;
+    
+    // Special handling for toolCalls: Never lose existing text!
+    if (isToolCall && this.messages[index]) {
+      const existingMessage = this.messages[index];
+      const existingHasText = existingMessage.content && existingMessage.content.trim().length > 0;
+      
+      // If this is a toolCall that already has text, and the server sends empty text,
+      // keep the existing text!
+      if (existingHasText && !hasRenderableText) {
+        console.log(`[PRESERVING] ToolCall at index ${index} has existing text, keeping it despite empty update`);
+        // Update baseContent to include existing text
+        const preservedContent = existingMessage.content;
+        this.historyContents[index] = preservedContent;
+        // Recalculate hasRenderableText
+        hasRenderableText = true;
+        baseContent = preservedContent;
+      }
+    }
+    
     const shouldShowPlaceholder = this.shouldShowToolCallPlaceholder(index, isToolCall, hasRenderableText);
     let targetIndex = index;
     
