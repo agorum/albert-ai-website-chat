@@ -2935,11 +2935,23 @@ export class ChatWidget {
       this.hideToolActivityIndicator();
       return;
     }
-    if (!this.isAwaitingAgent || !this.pendingToolCall) {
+    
+    const shouldShowToolIndicator = this.isAwaitingAgent && !!this.pendingToolCall;
+    
+    if (!shouldShowToolIndicator) {
+      const wasShowingToolIndicator = this.toolActivityIndicator?.parentElement === this.messageList;
       this.hideToolActivityIndicator();
+      
+      // If tool indicator was hidden and we're still awaiting agent, show typing indicator instead
+      if (wasShowingToolIndicator && this.isAwaitingAgent && !this.typingIndicator) {
+        this.showTypingIndicator();
+      }
       return;
     }
-    this.showToolActivityIndicator(this.pendingToolCall.anchorIndex);
+    
+    if (this.pendingToolCall) {
+      this.showToolActivityIndicator(this.pendingToolCall.anchorIndex);
+    }
   }
 
   /**
@@ -2973,6 +2985,12 @@ export class ChatWidget {
     if (!this.messageList || this.typingIndicator) {
       return;
     }
+    
+    // Don't show typing indicator if tool activity indicator is already visible
+    if (this.pendingToolCall && this.toolActivityIndicator?.parentElement) {
+      return;
+    }
+    
     const indicator = document.createElement("div");
     indicator.className = "acw-message acw-message-agent acw-typing";
     indicator.setAttribute("aria-live", "polite");
