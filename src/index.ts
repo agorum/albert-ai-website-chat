@@ -3484,7 +3484,13 @@ export class ChatWidget {
     const timestamp = this.parseTimestamp(entry.dateTime);
     const role = this.mapServiceRole(entry.role);
     const isToolCall = Boolean(entry.isToolCall);
-    const existingContent = this.historyContents[index] ?? "";
+    
+    // Get existing content from both sources
+    const existingHistoryContent = this.historyContents[index] ?? "";
+    const existingMessageContent = this.messages[index]?.content ?? "";
+    const existingContent = existingHistoryContent || existingMessageContent;
+    
+    // Use new text if available, otherwise keep existing
     const baseContent = decodedText || existingContent;
     const hasRenderableText = baseContent.trim().length > 0;
 
@@ -3552,17 +3558,16 @@ export class ChatWidget {
       return;
     }
 
-    // Fresh or replaced entry: store the full text snapshot before deciding on placeholder handling.
-    // Only update historyContents if we have new text, otherwise keep existing
-    if (decodedText || !this.historyContents[index]) {
-      this.historyContents[index] = baseContent;
-    }
+    // Fresh or replaced entry: store the full text snapshot
+    // Always store the baseContent which includes existing text if no new text came
+    this.historyContents[index] = baseContent;
     const shouldShowPlaceholder = this.shouldShowToolCallPlaceholder(index, isToolCall, hasRenderableText);
     let targetIndex = index;
     
     if (this.messages[index]) {
       // Keep existing content if no new text comes from server
-      const existingContent = this.messages[index].content || "";
+      const existingMessage = this.messages[index];
+      const existingContent = existingMessage.content || "";
       const newContent = hasRenderableText ? baseContent : existingContent;
       
       const updatedMessage: ChatMessage = {
@@ -3576,24 +3581,20 @@ export class ChatWidget {
       };
       this.messages[index] = updatedMessage;
       
-      // Update DOM if there's text, or if it's an agent message being streamed
-      const shouldUpdateDOM = hasRenderableText || (role === "agent" && isStreaming);
-      if (shouldUpdateDOM) {
+      // Determine if we should show this message
+      const messageHasText = newContent.trim().length > 0;
+      const shouldShowMessage = messageHasText || shouldShowPlaceholder || (role === "agent" && isStreaming);
+      
+      if (shouldShowMessage) {
+        // Show or update the message
         this.updateMessageContentAt(index, updatedMessage.content, timestamp);
-      } else if (!shouldShowPlaceholder) {
-        // Check if the existing message already has text - if so, keep it!
-        const existingMessage = this.messages[index];
-        const existingHasText = existingMessage && existingMessage.content && existingMessage.content.trim().length > 0;
-        
-        if (!existingHasText) {
-          // No text and no placeholder → remove any existing element
-          const existingRefs = this.messageElements[index];
-          if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
-            existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
-          }
-          this.messageElements[index] = null;
+      } else {
+        // Only remove if it's a toolCall without text and we shouldn't show placeholder
+        const existingRefs = this.messageElements[index];
+        if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
+          existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
         }
-        // If existing message has text, keep it displayed
+        this.messageElements[index] = null;
       }
     } else {
       const message: ChatMessage = {
@@ -3608,8 +3609,10 @@ export class ChatWidget {
       targetIndex = this.messages.length - 1;
     }
 
-    // Remove any stale bubble so the placeholder state is represented only by the tracker.
-    if (shouldShowPlaceholder) {
+    // For toolCalls without text that should show placeholder, remove the DOM element
+    // (the placeholder will be shown by updateToolActivityIndicator)
+    // BUT: Never remove toolCalls that have text!
+    if (shouldShowPlaceholder && !hasRenderableText) {
       const existingRefs = this.messageElements[targetIndex];
       if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
         existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
@@ -3620,12 +3623,21 @@ export class ChatWidget {
     // Update pending tool call state
     if (shouldShowPlaceholder) {
       this.pendingToolCall = { anchorIndex: targetIndex };
-    } else if (hasRenderableText && index > 0) {
-      // Check if previous message was a tool call placeholder
-      const prevMessage = this.messages[index - 1];
-      if (prevMessage?.isToolPlaceholder) {
-        // This message has text and follows a placeholder → hide the placeholder
-        this.pendingToolCall = null;
+    } else if (hasRenderableText) {
+      // This message has text - check if we need to remove previous toolCall without text
+      if (index > 0) {
+        const prevMessage = this.messages[index - 1];
+        if (prevMessage?.isToolPlaceholder) {
+          // Previous message was a tool call placeholder → hide it
+          this.pendingToolCall = null;
+          
+          // Also remove the DOM element of the previous toolCall without text
+          const prevRefs = this.messageElements[index - 1];
+          if (prevRefs?.wrapper && prevRefs.wrapper.parentElement) {
+            prevRefs.wrapper.parentElement.removeChild(prevRefs.wrapper);
+          }
+          this.messageElements[index - 1] = null;
+        }
       }
     }
 
