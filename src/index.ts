@@ -3410,8 +3410,9 @@ export class ChatWidget {
 
     const { fullRefresh = false } = options;
     const history = response.history ?? [];
+    const running = Boolean(response.running);
     // Don't rebuild during streaming to preserve typing indicator state
-    const shouldRebuild = !this.isAwaitingAgent && (fullRefresh || this.hasLocalOnlyMessages());
+    const shouldRebuild = !running && (fullRefresh || this.hasLocalOnlyMessages());
 
     if (shouldRebuild) {
       this.hydrateMessagesFromHistory(history);
@@ -3423,7 +3424,7 @@ export class ChatWidget {
       history.forEach((entry, index) => {
         const targetIndex = baseIndex + index;
         const appendExisting = continuingSameEntry && index === 0;
-        this.applyHistoryEntry(targetIndex, entry, { append: appendExisting });
+        this.applyHistoryEntry(targetIndex, entry, { append: appendExisting, isStreaming: running });
       });
     }
 
@@ -3446,8 +3447,6 @@ export class ChatWidget {
     if (!shouldRebuild && !this.messages.length && this.messageList && !this.typingIndicator) {
       this.renderEmptyState();
     }
-
-    const running = Boolean(response.running);
     this.isAwaitingAgent = running;
     if (!running) {
       this.pendingToolCall = null;
@@ -3455,6 +3454,8 @@ export class ChatWidget {
 
     if (running) {
       this.scheduleNextPoll();
+      // Show typing indicator if agent is processing
+      this.showTypingIndicator();
     } else {
       this.hideTypingIndicator();
       this.stopPolling();
@@ -3475,9 +3476,9 @@ export class ChatWidget {
   private applyHistoryEntry(
     index: number,
     entry: ChatServiceHistoryEntry,
-    options: { append?: boolean } = {}
+    options: { append?: boolean; isStreaming?: boolean } = {}
   ): void {
-    const { append = false } = options;
+    const { append = false, isStreaming = false } = options;
     const rawText = entry.text ?? "";
     const decodedText = decodeHtmlEntities(rawText);
     const timestamp = this.parseTimestamp(entry.dateTime);
@@ -3512,7 +3513,7 @@ export class ChatWidget {
         this.messages[index] = updatedMessage;
         
         // Update DOM if text exists or if this is an agent message being streamed
-        const shouldUpdate = nowHasText || (role === "agent" && this.isAwaitingAgent);
+        const shouldUpdate = nowHasText || (role === "agent" && isStreaming);
         if (shouldUpdate) {
           this.updateMessageContentAt(index, updatedContent, timestamp);
         }
@@ -3568,8 +3569,9 @@ export class ChatWidget {
       };
       this.messages[index] = updatedMessage;
       
-      // Only update the DOM if there's text to display
-      if (hasRenderableText) {
+      // Update DOM if there's text, or if it's an agent message being streamed
+      const shouldUpdateDOM = hasRenderableText || (role === "agent" && isStreaming);
+      if (shouldUpdateDOM) {
         this.updateMessageContentAt(index, updatedMessage.content, timestamp);
       } else if (!shouldShowPlaceholder) {
         // No text and no placeholder → remove any existing element
