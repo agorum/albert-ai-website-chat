@@ -261,6 +261,9 @@ const DEFAULT_SERVICE_POLL_INTERVAL = 250;
 const DEFAULT_STORAGE_KEY = "albert-chat-session-id";
 const MAX_POLL_FAILURES_BEFORE_RESET = 3;
 
+/**
+ * Escapes critical HTML characters so user content can be safely injected into the DOM.
+ */
 function escapeHtml(value: string): string {
   return value
     .replace(/&(?!#?\w+;)/g, "&amp;")
@@ -268,10 +271,16 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
+/**
+ * Escapes characters for safe usage inside HTML attribute values.
+ */
 function escapeHtmlAttribute(value: string): string {
   return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+/**
+ * Validates a link target and restricts it to safe protocols or same-origin references.
+ */
 function sanitizeUrl(rawUrl: string | undefined | null): string {
   if (!rawUrl) {
     return "#";
@@ -289,6 +298,9 @@ function sanitizeUrl(rawUrl: string | undefined | null): string {
   return "#";
 }
 
+/**
+ * Decodes HTML entities in a string, handling nested encodings iteratively.
+ */
 function decodeHtmlEntities(value: string): string {
   if (!value || !value.includes("&")) {
     return value;
@@ -383,6 +395,9 @@ marked.setOptions({
   renderer: markdownRenderer,
 });
 
+/**
+ * Renders markdown into sanitized HTML using a constrained renderer.
+ */
 function renderMarkdown(content: string): string {
   if (!content.trim()) {
     return "";
@@ -392,6 +407,9 @@ function renderMarkdown(content: string): string {
   return typeof rendered === "string" ? rendered : "";
 }
 
+/**
+ * Converts plain text into HTML paragraphs while escaping unsafe characters.
+ */
 function renderPlainText(content: string): string {
   if (!content) {
     return "";
@@ -400,6 +418,9 @@ function renderPlainText(content: string): string {
   return escapeHtml(normalized).replace(/\r?\n/g, "<br />");
 }
 
+/**
+ * Performs a deep merge tailored for configuration objects.
+ */
 function deepMerge<T>(target: T, source: DeepPartial<T>): T {
   if (!source) {
     return target;
@@ -428,10 +449,16 @@ function deepMerge<T>(target: T, source: DeepPartial<T>): T {
   return output;
 }
 
+/**
+ * Restricts a numeric value to the provided min/max range.
+ */
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Formats a timestamp for display inside bubbles using the configured locale.
+ */
 function formatTime(date: Date, locale: string): string {
   try {
     return new Intl.DateTimeFormat(locale, {
@@ -512,10 +539,16 @@ export class ChatWidget {
   private initializingPromise: Promise<boolean> | null = null;
   private hasLoadedInitialHistory = false;
 
+  /**
+   * Normalizes a backend endpoint URL by stripping trailing slashes so path concatenation remains predictable.
+   */
   private normalizeEndpoint(endpoint: string): string {
     return endpoint.trim().replace(/\/+$/, "");
   }
 
+  /**
+   * Builds a widget instance with merged default options and resolves initial feature flags.
+   */
   constructor(options: DeepPartial<ChatWidgetOptions> = {}) {
     this.options = deepMerge(defaultOptions, options);
     this.instanceId = ++widgetInstanceCounter;
@@ -531,6 +564,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Mounts the widget into the target DOM node and prepares storage, styles and initial state.
+   */
   mount(): void {
     if (typeof window === "undefined" || typeof document === "undefined") {
       throw new Error("AlbertChat: mount() benötigt eine Browser-Umgebung.");
@@ -566,6 +602,9 @@ export class ChatWidget {
     this.updateDimensions();
   }
 
+  /**
+   * Tears down DOM bindings, timers and observers so the widget can be safely discarded.
+   */
   destroy(): void {
     this.stopTeaserCountdown();
     this.clearStreamingTimers();
@@ -588,6 +627,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Opens the chat window, focuses the input and triggers auto-scroll behaviour.
+   */
   open(): void {
     if (this.isOpen) {
       return;
@@ -604,6 +646,9 @@ export class ChatWidget {
     this.updateDimensions();
   }
 
+  /**
+   * Closes the chat window and updates accessibility attributes accordingly.
+   */
   close(): void {
     if (!this.isOpen) {
       return;
@@ -614,6 +659,9 @@ export class ChatWidget {
     this.chatWindow.setAttribute("aria-hidden", "true");
   }
 
+  /**
+   * Toggles the chat window visibility based on the current open state.
+   */
   toggle(): void {
     if (this.isOpen) {
       this.close();
@@ -622,6 +670,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Clears all messages and state while optionally keeping the current service session alive.
+   */
   resetConversation(options: { preserveSession?: boolean } = {}): void {
     const { preserveSession = false } = options;
     this.clearStreamingTimers();
@@ -657,6 +708,9 @@ export class ChatWidget {
     this.renderInitialState();
   }
 
+  /**
+   * Detects whether localStorage can be used for persisting the chat session id.
+   */
   private resolveStorage(): Storage | null {
     if (typeof window === "undefined") {
       return null;
@@ -673,6 +727,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Reads a previously stored chat session id so we can resume an existing conversation.
+   */
   private loadPersistedChatId(): string | null {
     if (!this.storage || !this.serviceConfig) {
       return null;
@@ -685,6 +742,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Persists or removes the active chat id in localStorage depending on the given value.
+   */
   private persistChatId(id: string | null): void {
     if (!this.storage || !this.serviceConfig) {
       return;
@@ -700,6 +760,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Resets all session-related bookkeeping and removes any persisted chat id.
+   */
   private clearChatSession(): void {
     this.chatId = null;
     this.chatOffsets = null;
@@ -716,6 +779,9 @@ export class ChatWidget {
     this.resetTypingIndicatorState();
   }
 
+  /**
+   * Sets up the UI for a clean conversation start, considering consent and welcome message rules.
+   */
   private renderInitialState(): void {
     if (!this.messageList) {
       return;
@@ -752,6 +818,9 @@ export class ChatWidget {
     this.updateSendAvailability();
   }
 
+  /**
+   * Kicks off initialization with the backend service; optionally forces a fresh session.
+   */
   private requestServiceInitialization(forceReinit = false): void {
     if (!this.serviceConfig) {
       return;
@@ -764,6 +833,9 @@ export class ChatWidget {
     });
   }
 
+  /**
+   * Clears the rendered message list while keeping state consistent with running animations.
+   */
   private clearMessageList(): void {
     if (!this.messageList) {
       return;
@@ -792,6 +864,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Renders the placeholder empty-state bubble that tells the user no messages exist yet.
+   */
   private renderEmptyState(): void {
     if (!this.messageList) {
       return;
@@ -808,6 +883,9 @@ export class ChatWidget {
     this.messageList.appendChild(empty);
   }
 
+  /**
+   * Removes the welcome message bubble and cancels any running typing animation for it.
+   */
   private removeWelcomeMessage(): void {
     if (this.welcomeMessageElement) {
       this.welcomeMessageElement.remove();
@@ -824,6 +902,9 @@ export class ChatWidget {
     this.cancelWelcomeAnimationCallbacks();
   }
 
+  /**
+   * Ensures the welcome message bubble exists and handles the optional typing animation lifecycle.
+   */
   private ensureWelcomeMessage(): void {
     if (!this.messageList) {
       return;
@@ -897,6 +978,9 @@ export class ChatWidget {
     this.ensureDisclaimer();
   }
 
+  /**
+   * Plays the character-by-character welcome typing effect the first time the widget opens.
+   */
   private startWelcomeMessageAnimation(bubble: HTMLDivElement, text: string): void {
     if (
       this.hasShownWelcomeMessage ||
@@ -965,6 +1049,9 @@ export class ChatWidget {
     this.welcomeMessageTypingTimer = window.setInterval(flush, interval);
   }
 
+  /**
+   * Queues a callback to run once the welcome animation finished; executes immediately if idle.
+   */
   private runAfterWelcomeAnimation(callback: () => void): void {
     if (!this.isWelcomeTyping) {
       callback();
@@ -973,6 +1060,9 @@ export class ChatWidget {
     this.pendingWelcomeAnimationCallbacks.push(callback);
   }
 
+  /**
+   * Executes and clears all callbacks that were waiting for the welcome animation.
+   */
   private flushWelcomeAnimationCallbacks(): void {
     if (!this.pendingWelcomeAnimationCallbacks.length) {
       return;
@@ -988,10 +1078,16 @@ export class ChatWidget {
     });
   }
 
+  /**
+   * Clears any callbacks waiting for the welcome animation so they will not fire later.
+   */
   private cancelWelcomeAnimationCallbacks(): void {
     this.pendingWelcomeAnimationCallbacks = [];
   }
 
+  /**
+   * Ensures the optional disclaimer footer is appended after the message list when required.
+   */
   private ensureDisclaimer(): void {
     if (!this.messageList) {
       return;
@@ -1033,6 +1129,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Renders the consent prompt bubble with accept/decline buttons and wiring.
+   */
   private renderConsentPrompt(): void {
     if (!this.messageList) {
       return;
@@ -1074,6 +1173,9 @@ export class ChatWidget {
     this.scrollToBottom({ force: true });
   }
 
+  /**
+   * Removes the consent prompt bubble from the DOM if it is currently displayed.
+   */
   private removeConsentPrompt(): void {
     if (this.consentPromptElement) {
       this.consentPromptElement.remove();
@@ -1081,6 +1183,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Handles a consent acceptance by enabling input and initializing the service when necessary.
+   */
   private handleConsentAccept = (): void => {
     if (this.isTerminated) {
       return;
@@ -1113,6 +1218,9 @@ export class ChatWidget {
     this.focusInput();
   };
 
+  /**
+   * Handles a consent decline by terminating the session and showing the decline message.
+   */
   private handleConsentDecline = (): void => {
     if (this.isTerminated) {
       return;
@@ -1133,6 +1241,9 @@ export class ChatWidget {
     this.updateSendAvailability();
   };
 
+  /**
+   * Enables or disables the input area while updating the placeholder text accordingly.
+   */
   private setInputDisabled(disabled: boolean, placeholder?: string): void {
     if (!this.inputField) {
       return;
@@ -1158,6 +1269,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Reveals the input wrapper and re-enables typing capabilities.
+   */
   private showInputArea(): void {
     if (this.inputArea) {
       this.inputArea.classList.remove("acw-hidden");
@@ -1165,6 +1279,9 @@ export class ChatWidget {
     this.setInputDisabled(false);
   }
 
+  /**
+   * Hides the input wrapper and optionally shows a placeholder message describing why.
+   */
   private hideInputArea(placeholder?: string): void {
     if (this.inputArea) {
       this.inputArea.classList.add("acw-hidden");
@@ -1172,6 +1289,9 @@ export class ChatWidget {
     this.setInputDisabled(true, placeholder);
   }
 
+  /**
+   * Checks whether the provided icon reference points to an SVG asset.
+   */
   private isSvgIcon(icon: string): boolean {
     const value = icon.trim();
     if (!value) {
@@ -1192,6 +1312,9 @@ export class ChatWidget {
     return false;
   }
 
+  /**
+   * Creates an icon element, supporting both inline text icons and external SVG sources.
+   */
   private createIconElement(icon: string, baseClass: string, altText = ""): HTMLElement {
     const trimmed = icon.trim();
     if (this.isSvgIcon(trimmed)) {
@@ -1210,6 +1333,9 @@ export class ChatWidget {
     return span;
   }
 
+  /**
+   * Evaluates whether the user is currently allowed to send a message.
+   */
   private canSendMessage(): boolean {
     if (!this.inputField || this.inputField.disabled) {
       return false;
@@ -1223,6 +1349,9 @@ export class ChatWidget {
     return true;
   }
 
+  /**
+   * Synchronizes the send button state with the latest permission and streaming rules.
+   */
   private updateSendAvailability(): void {
     if (!this.sendButton) {
       return;
@@ -1254,6 +1383,9 @@ export class ChatWidget {
     this.sendButton.title = tooltip;
   }
 
+  /**
+   * Adds a new message to internal state and renders it unless it is a placeholder.
+   */
   addMessage(
     message: ChatMessage,
     options: { forceScroll?: boolean; smooth?: boolean; autoScroll?: boolean } = {}
@@ -1271,6 +1403,9 @@ export class ChatWidget {
     this.ensureDisclaimer();
   }
 
+  /**
+   * Applies CSS state classes to a user message to represent sending or failure states.
+   */
   private applyMessageStatus(wrapper: HTMLDivElement, message: ChatMessage): void {
     wrapper.classList.remove("acw-message-failed", "acw-message-pending");
     if (message.role !== "user") {
@@ -1283,6 +1418,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Finds the index of the most recent user-authored message in the history array.
+   */
   private getLastUserMessageIndex(): number {
     for (let index = this.messages.length - 1; index >= 0; index -= 1) {
       const candidate = this.messages[index];
@@ -1293,6 +1431,9 @@ export class ChatWidget {
     return -1;
   }
 
+  /**
+   * Updates a specific user message status and refreshes its DOM classes if present.
+   */
   private setUserMessageStatus(index: number, status: "pending" | "sent" | "failed"): void {
     const message = this.messages[index];
     if (!message || message.role !== "user") {
@@ -1306,6 +1447,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Convenience helper to update the status of the latest user message.
+   */
   private markLastUserMessageStatus(status: "pending" | "sent" | "failed"): void {
     const index = this.getLastUserMessageIndex();
     if (index === -1) {
@@ -1314,10 +1458,16 @@ export class ChatWidget {
     this.setUserMessageStatus(index, status);
   }
 
+  /**
+   * Returns true when there are unsynced local-only messages that require a refresh.
+   */
   private hasLocalOnlyMessages(): boolean {
     return this.messages.some((message) => message.localOnly);
   }
 
+  /**
+   * Removes a message and its DOM node while keeping placeholder tracking in sync.
+   */
   private removeMessageAt(index: number): void {
     const refs = this.messageElements[index];
     if (refs?.wrapper?.parentElement) {
@@ -1341,6 +1491,9 @@ export class ChatWidget {
     this.updateToolActivityIndicator();
   }
 
+  /**
+   * Drops any failed user messages from the history; used after successful refreshes.
+   */
   private removeFailedUserMessages(): void {
     let removed = false;
     for (let index = this.messages.length - 1; index >= 0; index -= 1) {
@@ -1355,6 +1508,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Removes locally generated agent messages (e.g. error banners) once the server responds.
+   */
   private removeLocalAgentMessages(): void {
     let removed = false;
     for (let index = this.messages.length - 1; index >= 0; index -= 1) {
@@ -1369,6 +1525,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Rebuilds the local message arrays from a server-provided history snapshot.
+   */
   private hydrateMessagesFromHistory(history: ChatServiceHistoryEntry[]): void {
     this.messages = [];
     this.messageElements = [];
@@ -1413,6 +1572,9 @@ export class ChatWidget {
     this.updateToolActivityIndicator();
   }
 
+  /**
+   * Resolves the DOM element the widget should attach to, defaulting to <body>.
+   */
   private resolveTarget(): HTMLElement {
     if (this.options.target instanceof HTMLElement) {
       return this.options.target;
@@ -1429,6 +1591,9 @@ export class ChatWidget {
     return document.body;
   }
 
+  /**
+   * Creates the main container that hosts the chat window, teaser bubble and launcher button.
+   */
   private createContainer(): HTMLDivElement {
     const container = document.createElement("div");
     container.className = "acw-container";
@@ -1445,12 +1610,18 @@ export class ChatWidget {
     return container;
   }
 
+  /**
+   * Generates the <style> element containing all widget CSS.
+   */
   private createStyleElement(): HTMLStyleElement {
     const style = document.createElement("style");
     style.textContent = this.buildStyles();
     return style;
   }
 
+  /**
+   * Returns the CSS template for the widget. Values are substituted via CSS custom properties.
+   */
   private buildStyles(): string {
     return `
       :host {
@@ -1989,6 +2160,9 @@ export class ChatWidget {
     `;
   }
 
+  /**
+   * Composes the chat window, including header, message list, input area, and footer links.
+   */
   private createChatWindow(): HTMLDivElement {
     const chat = document.createElement("div");
     chat.className = "acw-chat";
@@ -2022,6 +2196,9 @@ export class ChatWidget {
     return chat;
   }
 
+  /**
+   * Builds the chat header containing branding information and the close/reload controls.
+   */
   private createHeader(): HTMLElement {
     const header = document.createElement("header");
     header.className = "acw-header";
@@ -2076,6 +2253,9 @@ export class ChatWidget {
     return header;
   }
 
+  /**
+   * Constructs the chat input area including textarea, send button, and accessory controls.
+   */
   private createInputArea(): HTMLDivElement {
     const wrapper = document.createElement("div");
     wrapper.className = "acw-input-area";
@@ -2108,6 +2288,9 @@ export class ChatWidget {
     return wrapper;
   }
 
+  /**
+   * Generates the optional footer links section shown below the chat window.
+   */
   private createFooterLinks(): HTMLDivElement {
     const footer = document.createElement("div");
     footer.className = "acw-footer-links";
@@ -2135,6 +2318,9 @@ export class ChatWidget {
     return footer;
   }
 
+  /**
+   * Builds the launcher button that toggles the chat window open and closed.
+   */
   private createLauncherButton(): HTMLButtonElement {
     const launcher = document.createElement("button");
     launcher.type = "button";
@@ -2157,6 +2343,9 @@ export class ChatWidget {
     return launcher;
   }
 
+  /**
+   * Creates the teaser bubble that can appear before the user opens the chat.
+   */
   private createTeaserBubble(): HTMLButtonElement {
     const teaser = document.createElement("button");
     teaser.type = "button";
@@ -2167,6 +2356,9 @@ export class ChatWidget {
     return teaser;
   }
 
+  /**
+   * Registers global event listeners for resize, scrolling, and primary UI controls.
+   */
   private registerEventListeners(): void {
     this.launcherButton.addEventListener("click", () => this.toggle());
     this.teaserBubble.addEventListener("click", () => this.open());
@@ -2187,10 +2379,16 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Handles window resize events to keep the widget dimensions responsive.
+   */
   private handleWindowResize = (): void => {
     this.updateDimensions();
   };
 
+  /**
+   * Updates the auto-scroll flag when the user manually scrolls within the message list.
+   */
   private handleMessagesScroll = (): void => {
     if (!this.messageList) {
       return;
@@ -2200,6 +2398,9 @@ export class ChatWidget {
     this.shouldAutoScroll = distance < 36;
   };
 
+  /**
+   * Moves focus to the textarea so the user can start typing immediately.
+   */
   private focusInput(): void {
     if (!this.inputField) {
       return;
@@ -2213,6 +2414,9 @@ export class ChatWidget {
     }, 0);
   }
 
+  /**
+   * Autosizes the textarea based on content while enforcing minimum and maximum heights.
+   */
   private adjustTextareaHeight(): void {
     if (!this.inputField) {
       return;
@@ -2240,6 +2444,9 @@ export class ChatWidget {
     this.lastTextareaHeight = clampedHeight;
   }
 
+  /**
+   * Intercepts key presses to support submit-on-enter and shift+enter line breaks.
+   */
   private handleInputKeyDown(event: KeyboardEvent): void {
     if (event.key === "Enter" && !event.shiftKey) {
       if (!this.canSendMessage()) {
@@ -2250,6 +2457,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Validates and dispatches the current user input to the conversation stream.
+   */
   private async handleSend(): Promise<void> {
     if (!this.canSendMessage()) {
       return;
@@ -2269,6 +2479,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Adds a pending user message locally so it appears instantly while awaiting backend confirmation.
+   */
   private enqueueUserMessage(content: string): void {
     const message: ChatMessage = {
       role: "user",
@@ -2281,6 +2494,9 @@ export class ChatWidget {
     this.ensureDisclaimer();
   }
 
+  /**
+   * Inserts a synthetic agent message, e.g. for local errors or welcome prompts.
+   */
   private enqueueAgentMessage(
     content: string,
     isInitial = false,
@@ -2303,6 +2519,9 @@ export class ChatWidget {
     this.addMessage(message, { forceScroll, smooth: true, autoScroll: true });
   }
   
+  /**
+   * Transforms markdown content into HTML and wraps it with accessibility markup.
+   */
   private renderMessageHtml(message: ChatMessage): string {
     if (message.role === "agent") {
       return renderMarkdown(message.content);
@@ -2310,6 +2529,9 @@ export class ChatWidget {
     return renderPlainText(message.content);
   }
 
+  /**
+   * Creates the DOM scaffolding for a message bubble, including timestamp and metadata hooks.
+   */
   private buildMessageElement(message: ChatMessage): {
     wrapper: HTMLDivElement;
     bubble: HTMLDivElement;
@@ -2332,6 +2554,9 @@ export class ChatWidget {
     return { wrapper, bubble, timestamp: metadata };
   }
 
+  /**
+   * Appends or reuses a message bubble in the DOM, respecting typing indicators and auto-scroll settings.
+   */
   private appendMessageElement(
     message: ChatMessage,
     options: { autoScroll?: boolean; forceScroll?: boolean; smooth?: boolean } = {}
@@ -2413,6 +2638,9 @@ export class ChatWidget {
     return elements;
   }
 
+  /**
+   * Finds the next rendered message node after the given index to maintain chronological insertion order.
+   */
   private findNextMessageNode(index: number): ChildNode | null {
     if (!this.messageList) {
       return null;
@@ -2435,6 +2663,9 @@ export class ChatWidget {
     return null;
   }
 
+  /**
+   * Lazily ensures a message at the given index has a rendered DOM representation.
+   */
   private ensureMessageElement(index: number): MessageElementRefs | null {
     if (!this.messageList) {
       return null;
@@ -2463,6 +2694,9 @@ export class ChatWidget {
     return elements;
   }
 
+  /**
+   * Updates the HTML content and timestamp for a specific message bubble.
+   */
   private updateMessageContentAt(index: number, content: string, timestamp?: Date): void {
     const message = this.messages[index];
     if (!message) {
@@ -2490,6 +2724,9 @@ export class ChatWidget {
     this.ensureDisclaimer();
   }
 
+  /**
+   * Scrolls the message list to the bottom when auto-scroll is allowed or explicitly forced.
+   */
   private scrollToBottom({
     smooth = false,
     force = false,
@@ -2525,6 +2762,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Clears all references related to the typing indicator so it can be recreated safely.
+   */
   private resetTypingIndicatorState(): void {
     this.typingIndicator = undefined;
     this.typingIndicatorContent = undefined;
@@ -2533,6 +2773,9 @@ export class ChatWidget {
     this.typingIndicatorIsStandalone = false;
   }
 
+  /**
+   * Finds the last meaningful descendant node inside a bubble to position the typing cursor.
+   */
   private findLastContentNode(root: Node | null): Node | null {
     if (!root) {
       return null;
@@ -2561,6 +2804,9 @@ export class ChatWidget {
     return null;
   }
 
+  /**
+   * Moves the animated typing cursor element to the end of the latest rendered text node.
+   */
   private attachTypingCursor(container: HTMLElement, cursor: HTMLSpanElement): void {
     if (!container || !cursor) {
       return;
@@ -2600,6 +2846,9 @@ export class ChatWidget {
     element.appendChild(cursor);
   }
 
+  /**
+   * Creates the "tool in progress" bubble that mirrors the backend tool invocation state.
+   */
   private createToolActivityIndicator(): HTMLDivElement {
     const wrapper = document.createElement("div");
     wrapper.className = "acw-message acw-message-agent acw-tool-indicator";
@@ -2611,6 +2860,9 @@ export class ChatWidget {
     return wrapper;
   }
 
+  /**
+   * Inserts the tool activity indicator near the tracked placeholder message.
+   */
   private showToolActivityIndicator(anchorIndex: number | null): void {
     if (!this.messageList) {
       return;
@@ -2647,12 +2899,18 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Removes the tool activity indicator from the DOM if present.
+   */
   private hideToolActivityIndicator(): void {
     if (this.toolActivityIndicator?.parentElement) {
       this.toolActivityIndicator.parentElement.removeChild(this.toolActivityIndicator);
     }
   }
 
+  /**
+   * Synchronizes the tool activity indicator visibility with the current placeholder state.
+   */
   private updateToolActivityIndicator(): void {
     if (!this.messageList) {
       this.hideToolActivityIndicator();
@@ -2665,6 +2923,9 @@ export class ChatWidget {
     this.showToolActivityIndicator(this.pendingToolCall.anchorIndex);
   }
 
+  /**
+   * Displays the animated typing indicator message bubble while streaming agent content.
+   */
   private showTypingIndicator(): void {
     if (!this.messageList || this.typingIndicator) {
       return;
@@ -2706,6 +2967,9 @@ export class ChatWidget {
     this.scrollToBottom({ smooth: true });
   }
 
+  /**
+   * Removes the typing indicator bubble and resets its state trackers.
+   */
   private hideTypingIndicator(): void {
     if (!this.typingIndicator) {
       return;
@@ -2734,6 +2998,9 @@ export class ChatWidget {
     this.resetTypingIndicatorState();
   }
 
+  /**
+   * Clears active streaming timeouts/intervals and optionally finalizes the partial message.
+   */
   private clearStreamingTimers({ finalize = false }: { finalize?: boolean } = {}): void {
     if (this.activeStreamTimeout !== null) {
       window.clearTimeout(this.activeStreamTimeout);
@@ -2780,6 +3047,9 @@ export class ChatWidget {
     this.ensureDisclaimer();
   }
 
+  /**
+   * Ensures a backend chat session exists and initial history is loaded before continuing.
+   */
   private async ensureChatSessionInitialized(forceReinit = false): Promise<void> {
     if (!this.serviceConfig) {
       return;
@@ -2807,6 +3077,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Creates or reuses a chat session by calling the service initialization endpoint.
+   */
   private async initChatSession(): Promise<boolean> {
     const config = this.serviceConfig;
     if (!config) {
@@ -2854,6 +3127,9 @@ export class ChatWidget {
     return result;
   }
 
+  /**
+   * Sends a user message to the backend chat service and manages optimistic UI updates.
+   */
   private async sendMessageToService(content: string): Promise<void> {
     if (!this.serviceConfig) {
       return;
@@ -2918,6 +3194,9 @@ export class ChatWidget {
     await this.fetchInfo({ immediate: true });
   }
 
+  /**
+   * Polls the backend for incremental updates and handles retry logic on failure.
+   */
   private async fetchInfo(
     options: { fullRefresh?: boolean; immediate?: boolean } = {}
   ): Promise<boolean> {
@@ -2965,6 +3244,9 @@ export class ChatWidget {
     return result;
   }
 
+  /**
+   * Processes a service response by updating local history arrays and UI state.
+   */
   private processInfoResponse(
     response: ChatServiceInfoResponse,
     options: { fullRefresh?: boolean } = {}
@@ -3038,6 +3320,9 @@ export class ChatWidget {
     this.updateToolActivityIndicator();
   }
 
+  /**
+   * Applies a single history entry, optionally appending streaming chunks to existing bubbles.
+   */
   private applyHistoryEntry(
     index: number,
     entry: ChatServiceHistoryEntry,
@@ -3149,6 +3434,12 @@ export class ChatWidget {
     this.updateToolActivityIndicator();
   }
 
+  /**
+   * Schedules the next poll request based on the configured interval or an override delay.
+   */
+  /**
+   * Schedules the next polling request to keep the conversation in sync.
+   */
   private scheduleNextPoll(delay?: number): void {
     if (!this.serviceConfig || this.isTerminated) {
       return;
@@ -3164,6 +3455,9 @@ export class ChatWidget {
     }, Math.max(0, interval));
   }
 
+  /**
+   * Cancels any scheduled polling timer.
+   */
   private stopPolling(): void {
     if (this.pollTimerId !== null) {
       window.clearTimeout(this.pollTimerId);
@@ -3171,6 +3465,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Constructs the info endpoint path, adding offsets when incremental polling is possible.
+   */
   private buildInfoPath(fullRefresh: boolean): string {
     if (!this.chatId) {
       throw new Error("Chat-ID fehlt");
@@ -3186,6 +3483,9 @@ export class ChatWidget {
     return query ? `${base}?${query}` : base;
   }
 
+  /**
+   * Builds an absolute URL for the chat service based on the configured endpoint.
+   */
   private buildServiceUrl(path: string): string {
     if (!this.serviceConfig) {
       throw new Error("Servicekonfiguration fehlt");
@@ -3194,6 +3494,9 @@ export class ChatWidget {
     return `${this.serviceConfig.endpoint}${suffix}`;
   }
 
+  /**
+   * Performs a JSON fetch against the chat service endpoint with sensible defaults.
+   */
   private async requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
     const url = this.buildServiceUrl(path);
     const headers = new Headers(init.headers ?? {});
@@ -3232,6 +3535,9 @@ export class ChatWidget {
     return (payload as T) ?? ({} as T);
   }
 
+  /**
+   * Parses a timestamp string and falls back to the current time on invalid values.
+   */
   private parseTimestamp(value?: string): Date {
     if (!value) {
       return new Date();
@@ -3243,6 +3549,9 @@ export class ChatWidget {
     return date;
   }
 
+  /**
+   * Normalizes service role strings into internal role identifiers.
+   */
   private mapServiceRole(role: string): ChatRole {
     const normalized = role ? role.toLowerCase() : "";
     if (normalized === "user" || normalized === "human") {
@@ -3251,6 +3560,9 @@ export class ChatWidget {
     return "agent";
   }
 
+  /**
+   * Enqueues an agent error message, avoiding duplicates, to inform the user.
+   */
   private showServiceError(message: string): void {
     if (this.isTerminated) {
       return;
@@ -3263,6 +3575,9 @@ export class ChatWidget {
     this.ensureDisclaimer();
   }
 
+  /**
+   * Handles expired sessions by clearing state and optionally showing a user-facing message.
+   */
   private async handleSessionExpired(showMessage = false): Promise<void> {
     this.stopPolling();
     this.clearChatSession();
@@ -3286,6 +3601,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Simulates streaming agent output character by character for local/demo scenarios.
+   */
   private streamAgentMessage(content: string): void {
     if (!this.messageList) {
       return;
@@ -3345,6 +3663,9 @@ export class ChatWidget {
     flush();
   }
 
+  /**
+   * Provides mock agent responses when no backend service is configured.
+   */
   private simulateAgentReply(): void {
     if (this.serviceConfig) {
       return;
@@ -3377,6 +3698,9 @@ export class ChatWidget {
     }, delay);
   }
 
+  /**
+   * Writes the configured theme values into CSS custom properties on the host element.
+   */
   private applyThemeVariables(): void {
     const root = this.host;
     const theme = this.options.theme;
@@ -3415,6 +3739,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Recalculates chat window dimensions based on viewport size and configuration.
+   */
   private updateDimensions(): void {
     if (!this.chatWindow) {
       return;
@@ -3436,6 +3763,9 @@ export class ChatWidget {
     this.host.style.setProperty("--acw-chat-height", `${Math.round(height)}px`);
   }
 
+  /**
+   * Starts the delayed timer that shows the teaser bubble to draw attention.
+   */
   private startTeaserCountdown(): void {
     if (this.teaserTimerId !== null || this.hasEverOpened) {
       return;
@@ -3447,6 +3777,9 @@ export class ChatWidget {
     }, this.options.teaserDelayMs);
   }
 
+  /**
+   * Cancels any pending teaser timer.
+   */
   private stopTeaserCountdown(): void {
     if (this.teaserTimerId !== null) {
       window.clearTimeout(this.teaserTimerId);
@@ -3454,6 +3787,9 @@ export class ChatWidget {
     }
   }
 
+  /**
+   * Makes the teaser bubble visible with transition styles.
+   */
   private showTeaser(): void {
     if (!this.teaserBubble) {
       return;
@@ -3462,6 +3798,9 @@ export class ChatWidget {
     this.teaserBubble.classList.add("acw-visible");
   }
 
+  /**
+   * Hides the teaser bubble and resets its animation state.
+   */
   private hideTeaser(): void {
     this.stopTeaserCountdown();
     if (!this.teaserBubble) {
@@ -3472,6 +3811,9 @@ export class ChatWidget {
   }
 }
 
+/**
+ * Convenience initializer that constructs and mounts a widget in a single call.
+ */
 export function init(options: DeepPartial<ChatWidgetOptions> = {}): ChatWidget {
   const widget = new ChatWidget(options);
   widget.mount();
