@@ -1259,6 +1259,7 @@ export class ChatWidget {
     options: { forceScroll?: boolean; smooth?: boolean; autoScroll?: boolean } = {}
   ): void {
     this.messages.push(message);
+    // Placeholder entries reserve history positions but should not render a bubble until text exists.
     let elements: MessageElementRefs | null = null;
     if (!message.isToolPlaceholder) {
       elements = this.appendMessageElement(message, options);
@@ -1394,6 +1395,7 @@ export class ChatWidget {
       };
       this.historyContents.push(decodedText);
       this.addMessage(message, { autoScroll: false });
+      // Remember the placeholder index so the spinner stays visible until any subsequent text is received.
       if (isToolCall && !hasRenderableText) {
         pendingToolCall = { anchorIndex: this.messages.length - 1 };
       } else if (hasRenderableText) {
@@ -2438,6 +2440,7 @@ export class ChatWidget {
       return null;
     }
     const message = this.messages[index];
+    // Ignore placeholder messages: they intentionally have no rendered bubble yet.
     if (!message || message.isToolPlaceholder) {
       return null;
     }
@@ -2446,6 +2449,7 @@ export class ChatWidget {
       return existing;
     }
 
+    // Build the DOM node on demand so chronological order stays intact even after lazy creation.
     const elements = this.buildMessageElement(message);
     const referenceNode = this.findNextMessageNode(index);
     if (referenceNode) {
@@ -3053,6 +3057,7 @@ export class ChatWidget {
       if (!decodedText) {
         return;
       }
+      // Streaming chunk: extend the existing text buffer and update the rendered message.
       const updatedContent = (this.historyContents[index] ?? "") + decodedText;
       const trimmedUpdatedContent = updatedContent.trim();
       this.historyContents[index] = updatedContent;
@@ -3080,6 +3085,7 @@ export class ChatWidget {
         };
         this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
       }
+      // Keep the placeholder anchored while the tool call has no text; drop it on the first visible character.
       if (isToolCall && trimmedUpdatedContent.length === 0) {
         this.pendingToolCall = { anchorIndex: index };
       } else if (trimmedUpdatedContent.length > 0) {
@@ -3092,6 +3098,7 @@ export class ChatWidget {
       return;
     }
 
+    // Fresh or replaced entry: store the full text snapshot before deciding on placeholder handling.
     this.historyContents[index] = baseContent;
     const shouldShowPlaceholder = isToolCall && !hasRenderableText;
     let targetIndex = index;
@@ -3120,6 +3127,7 @@ export class ChatWidget {
       targetIndex = this.messages.length - 1;
     }
 
+    // Remove any stale bubble so the placeholder state is represented only by the tracker.
     if (shouldShowPlaceholder) {
       const existingRefs = this.messageElements[targetIndex];
       if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
@@ -3128,6 +3136,7 @@ export class ChatWidget {
       this.messageElements[targetIndex] = null;
     }
 
+    // Maintain the global indicator reference until follow-up text arrives; otherwise clear it.
     if (shouldShowPlaceholder) {
       this.pendingToolCall = { anchorIndex: targetIndex };
     } else if (hasRenderableText) {
