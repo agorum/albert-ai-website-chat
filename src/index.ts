@@ -3561,10 +3561,14 @@ export class ChatWidget {
     let targetIndex = index;
     
     if (this.messages[index]) {
+      // Keep existing content if no new text comes from server
+      const existingContent = this.messages[index].content || "";
+      const newContent = hasRenderableText ? baseContent : existingContent;
+      
       const updatedMessage: ChatMessage = {
         ...this.messages[index],
         role,
-        content: hasRenderableText ? baseContent : "",
+        content: newContent,
         timestamp,
         status: role === "user" ? "sent" : this.messages[index]?.status,
         localOnly: false,
@@ -3577,12 +3581,19 @@ export class ChatWidget {
       if (shouldUpdateDOM) {
         this.updateMessageContentAt(index, updatedMessage.content, timestamp);
       } else if (!shouldShowPlaceholder) {
-        // No text and no placeholder → remove any existing element
-        const existingRefs = this.messageElements[index];
-        if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
-          existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
+        // Check if the existing message already has text - if so, keep it!
+        const existingMessage = this.messages[index];
+        const existingHasText = existingMessage && existingMessage.content && existingMessage.content.trim().length > 0;
+        
+        if (!existingHasText) {
+          // No text and no placeholder → remove any existing element
+          const existingRefs = this.messageElements[index];
+          if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
+            existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
+          }
+          this.messageElements[index] = null;
         }
-        this.messageElements[index] = null;
+        // If existing message has text, keep it displayed
       }
     } else {
       const message: ChatMessage = {
