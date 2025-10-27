@@ -2593,6 +2593,7 @@ export class ChatWidget {
       | null = null;
     let reusedTypingIndicator = false;
 
+    // Try to reuse existing typing indicator if this is an agent message
     if (
       message.role === "agent" &&
       this.typingIndicator &&
@@ -2619,8 +2620,34 @@ export class ChatWidget {
       reusedTypingIndicator = true;
     } else {
       const built = this.buildMessageElement(message);
+      
+      // If this is an agent message and we're streaming, add typing cursor directly
+      if (message.role === "agent" && this.isAwaitingAgent && message.content.trim().length > 0) {
+        const bubble = built.bubble;
+        bubble.classList.add("acw-bubble-typing");
+        built.wrapper.classList.add("acw-typing");
+        
+        const content = document.createElement("div");
+        content.className = "acw-typing-content";
+        content.innerHTML = bubble.innerHTML;
+        bubble.innerHTML = "";
+        bubble.appendChild(content);
+        
+        const cursor = document.createElement("span");
+        cursor.className = "acw-typing-cursor";
+        bubble.appendChild(cursor);
+        this.attachTypingCursor(content, cursor);
+        
+        // Set typing indicator references
+        this.typingIndicator = built.wrapper;
+        this.typingIndicatorContent = content;
+        this.typingIndicatorCursor = cursor;
+        this.typingIndicatorTimestamp = built.timestamp;
+        this.typingIndicatorIsStandalone = false;
+      }
+      
       const referenceNode =
-        (this.typingIndicator && this.typingIndicator.parentElement === this.messageList
+        (this.typingIndicator && this.typingIndicator.parentElement === this.messageList && this.typingIndicator !== built.wrapper
           ? this.typingIndicator
           : null) ??
         (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList
@@ -3008,38 +3035,52 @@ export class ChatWidget {
     // Check if the last message is already an agent message that can show the cursor
     const lastMessage = this.messages[this.messages.length - 1];
     if (lastMessage && lastMessage.role === "agent" && !lastMessage.isToolPlaceholder) {
-      const lastMessageHasText = lastMessage.content.trim().length > 0;
       const lastMessageRefs = this.messageElements[this.messages.length - 1];
       
-      // If last message has text and is rendered, add cursor to it instead of creating new bubble
-      if (lastMessageHasText && lastMessageRefs?.bubble) {
+      // If last message exists and already has a cursor, do nothing
+      if (lastMessageRefs?.bubble?.querySelector(".acw-typing-cursor")) {
+        // Update typing indicator references to point to this message
         const bubble = lastMessageRefs.bubble;
-        
-        // Check if it doesn't already have a typing cursor
-        if (!bubble.querySelector(".acw-typing-cursor")) {
-          bubble.classList.add("acw-bubble-typing");
-          lastMessageRefs.wrapper.classList.add("acw-typing");
-          
-          const content = document.createElement("div");
-          content.className = "acw-typing-content";
-          content.innerHTML = bubble.innerHTML;
-          bubble.innerHTML = "";
-          bubble.appendChild(content);
-          
-          const cursor = document.createElement("span");
-          cursor.className = "acw-typing-cursor";
-          bubble.appendChild(cursor);
-          this.attachTypingCursor(content, cursor);
-          
+        const content = bubble.querySelector<HTMLElement>(".acw-typing-content");
+        const cursor = bubble.querySelector<HTMLSpanElement>(".acw-typing-cursor");
+        if (content && cursor) {
           this.typingIndicator = lastMessageRefs.wrapper;
           this.typingIndicatorContent = content;
           this.typingIndicatorCursor = cursor;
           this.typingIndicatorTimestamp = lastMessageRefs.timestamp;
           this.typingIndicatorIsStandalone = false;
-          
-          this.scrollToBottom({ smooth: true });
-          return;
         }
+        return;
+      }
+      
+      const lastMessageHasText = lastMessage.content.trim().length > 0;
+      
+      // If last message has text and is rendered, add cursor to it instead of creating new bubble
+      if (lastMessageHasText && lastMessageRefs?.bubble) {
+        const bubble = lastMessageRefs.bubble;
+        
+        bubble.classList.add("acw-bubble-typing");
+        lastMessageRefs.wrapper.classList.add("acw-typing");
+        
+        const content = document.createElement("div");
+        content.className = "acw-typing-content";
+        content.innerHTML = bubble.innerHTML;
+        bubble.innerHTML = "";
+        bubble.appendChild(content);
+        
+        const cursor = document.createElement("span");
+        cursor.className = "acw-typing-cursor";
+        bubble.appendChild(cursor);
+        this.attachTypingCursor(content, cursor);
+        
+        this.typingIndicator = lastMessageRefs.wrapper;
+        this.typingIndicatorContent = content;
+        this.typingIndicatorCursor = cursor;
+        this.typingIndicatorTimestamp = lastMessageRefs.timestamp;
+        this.typingIndicatorIsStandalone = false;
+        
+        this.scrollToBottom({ smooth: true });
+        return;
       }
     }
     
