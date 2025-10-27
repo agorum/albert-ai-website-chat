@@ -494,6 +494,9 @@ export class ChatWidget {
   private typingIndicatorCursor?: HTMLSpanElement;
   private typingIndicatorTimestamp?: HTMLSpanElement;
   private typingIndicatorIsStandalone = false;
+  
+  // Cache for toolCall texts to prevent loss during rebuilds
+  private toolCallTextCache: Map<number, string> = new Map();
   private toolActivityIndicator?: HTMLDivElement;
   private pendingToolCall: { anchorIndex: number | null } | null = null;
   private isOpen = false;
@@ -1534,7 +1537,17 @@ export class ChatWidget {
    * Rebuilds the local message arrays from a server-provided history snapshot.
    */
   private hydrateMessagesFromHistory(history: ChatServiceHistoryEntry[]): void {
-    console.log('[hydrateMessagesFromHistory] REBUILDING ALL MESSAGES');
+    console.log('[hydrateMessagesFromHistory] REBUILDING ALL MESSAGES, history entries:', history.length);
+    
+    // Log what we're losing
+    if (this.messages.length > 0) {
+      console.log('LOSING EXISTING MESSAGES:', this.messages.map((m, i) => ({
+        index: i,
+        content: m.content?.substring(0, 50),
+        isToolPlaceholder: m.isToolPlaceholder
+      })));
+    }
+    
     this.messages = [];
     this.messageElements = [];
     this.historyContents = [];
@@ -1548,8 +1561,28 @@ export class ChatWidget {
       const rawText = entry.text ?? "";
       const decodedText = decodeHtmlEntities(rawText);
       const trimmedText = decodedText.trim();
+      
+      // Log the raw entry data for debugging
+      if (entry.isToolCall) {
+        console.log(`[hydrate RAW] Index ${index}: text="${rawText?.substring(0, 50)}", entry:`, entry);
+      }
       const isToolCall = Boolean(entry.isToolCall);
-      const hasRenderableText = trimmedText.length > 0;
+      
+      // For toolCalls, check cache if server doesn't send text
+      let effectiveText = decodedText;
+      if (isToolCall) {
+        if (trimmedText.length > 0) {
+          // Server sent text, update cache
+          this.toolCallTextCache.set(index, decodedText);
+          console.log(`[CACHE] Storing toolCall text at index ${index}: "${decodedText.substring(0, 50)}"`);
+        } else if (this.toolCallTextCache.has(index)) {
+          // No text from server, use cached text
+          effectiveText = this.toolCallTextCache.get(index)!;
+          console.log(`[CACHE] Retrieving toolCall text at index ${index}: "${effectiveText.substring(0, 50)}"`);
+        }
+      }
+      
+      const hasRenderableText = effectiveText.trim().length > 0;
       
       // For toolCalls without text, check if they should be shown as placeholder
       let isToolPlaceholder = false;
@@ -1572,7 +1605,7 @@ export class ChatWidget {
       
       const message: ChatMessage = {
         role,
-        content: hasRenderableText ? decodedText : "",
+        content: hasRenderableText ? effectiveText : "",
         timestamp: this.parseTimestamp(entry.dateTime),
         status: role === "user" ? "sent" : undefined,
         localOnly: false,
@@ -1581,10 +1614,10 @@ export class ChatWidget {
       
       // Debug logging for toolCalls
       if (isToolCall) {
-        console.log(`[hydrate] Index ${index}: isToolCall=${isToolCall}, hasText=${hasRenderableText}, isPlaceholder=${isToolPlaceholder}, text="${trimmedText.substring(0, 50)}"`);
+        console.log(`[hydrate] Index ${index}: isToolCall=${isToolCall}, hasText=${hasRenderableText}, isPlaceholder=${isToolPlaceholder}, text="${effectiveText.trim().substring(0, 50)}"`);
       }
       
-      this.historyContents.push(decodedText);
+      this.historyContents.push(effectiveText);
       this.addMessage(message, { autoScroll: false });
       
       // Determine if this tool call should show a placeholder
@@ -3529,13 +3562,27 @@ export class ChatWidget {
       console.log(`[applyHistoryEntry] Index ${index}: isToolCall=${isToolCall}, text="${decodedText.substring(0, 50)}", append=${append}, isStreaming=${isStreaming}`);
     }
     
+    // For toolCalls, use cache to preserve text
+    let effectiveDecodedText = decodedText;
+    if (isToolCall) {
+      if (decodedText.trim().length > 0) {
+        // New text from server, update cache
+        this.toolCallTextCache.set(index, decodedText);
+        console.log(`[CACHE UPDATE] Storing toolCall text at index ${index}: "${decodedText.substring(0, 50)}"`);
+      } else if (this.toolCallTextCache.has(index)) {
+        // No text from server, use cached text
+        effectiveDecodedText = this.toolCallTextCache.get(index)!;
+        console.log(`[CACHE HIT] Using cached toolCall text at index ${index}: "${effectiveDecodedText.substring(0, 50)}"`);
+      }
+    }
+    
     // Get existing content from both sources
     const existingHistoryContent = this.historyContents[index] ?? "";
     const existingMessageContent = this.messages[index]?.content ?? "";
     const existingContent = existingHistoryContent || existingMessageContent;
     
     // Use new text if available, otherwise keep existing
-    let baseContent = decodedText || existingContent;
+    let baseContent = effectiveDecodedText || existingContent;
     let hasRenderableText = baseContent.trim().length > 0;
 
     if (append && this.historyContents[index] !== undefined) {
