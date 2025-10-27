@@ -1259,11 +1259,15 @@ export class ChatWidget {
     options: { forceScroll?: boolean; smooth?: boolean; autoScroll?: boolean } = {}
   ): void {
     this.messages.push(message);
-    const elements = this.appendMessageElement(message, options);
-    this.messageElements.push(elements);
-    if (elements) {
-      this.applyMessageStatus(elements.wrapper, message);
+    let elements: MessageElementRefs | null = null;
+    if (!message.isToolPlaceholder) {
+      elements = this.appendMessageElement(message, options);
+      if (elements) {
+        this.applyMessageStatus(elements.wrapper, message);
+      }
     }
+    this.messageElements.push(elements);
+    this.ensureDisclaimer();
   }
 
   private applyMessageStatus(wrapper: HTMLDivElement, message: ChatMessage): void {
@@ -1390,7 +1394,7 @@ export class ChatWidget {
       };
       this.historyContents.push(decodedText);
       this.addMessage(message, { autoScroll: false });
-      if (message.isToolPlaceholder) {
+      if (isToolCall && !hasRenderableText) {
         pendingToolCall = { anchorIndex: this.messages.length - 1 };
       } else if (hasRenderableText) {
         pendingToolCall = null;
@@ -1632,9 +1636,6 @@ export class ChatWidget {
         background: var(--acw-agent-message-color);
         color: var(--acw-agent-text-color);
         border-bottom-left-radius: 4px;
-      }
-      .acw-message-tool-placeholder-hidden {
-        display: none !important;
       }
       .acw-tool-indicator .acw-bubble {
         font-style: italic;
@@ -2394,14 +2395,6 @@ export class ChatWidget {
     if (autoScroll) {
       this.scrollToBottom({ smooth, force: forceScroll });
     }
-    this.ensureDisclaimer();
-    if (message.isToolPlaceholder) {
-      elements.wrapper.classList.add("acw-message-tool-placeholder-hidden");
-      elements.bubble.textContent = "";
-      elements.timestamp.textContent = "";
-    } else {
-      elements.wrapper.classList.remove("acw-message-tool-placeholder-hidden");
-    }
     if (reusedTypingIndicator) {
       // Keep the typing indicator references linked to the active message until it completes.
       this.typingIndicator = elements.wrapper;
@@ -2418,6 +2411,54 @@ export class ChatWidget {
     return elements;
   }
 
+  private findNextMessageNode(index: number): ChildNode | null {
+    if (!this.messageList) {
+      return null;
+    }
+    for (let candidate = index + 1; candidate < this.messageElements.length; candidate += 1) {
+      const refs = this.messageElements[candidate];
+      if (refs?.wrapper && refs.wrapper.parentElement === this.messageList) {
+        return refs.wrapper;
+      }
+    }
+    if (this.typingIndicator && this.typingIndicator.parentElement === this.messageList) {
+      return this.typingIndicator;
+    }
+    if (this.toolActivityIndicator && this.toolActivityIndicator.parentElement === this.messageList) {
+      return this.toolActivityIndicator;
+    }
+    if (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
+      return this.disclaimerElement;
+    }
+    return null;
+  }
+
+  private ensureMessageElement(index: number): MessageElementRefs | null {
+    if (!this.messageList) {
+      return null;
+    }
+    const message = this.messages[index];
+    if (!message || message.isToolPlaceholder) {
+      return null;
+    }
+    const existing = this.messageElements[index];
+    if (existing?.wrapper && existing.wrapper.parentElement === this.messageList) {
+      return existing;
+    }
+
+    const elements = this.buildMessageElement(message);
+    const referenceNode = this.findNextMessageNode(index);
+    if (referenceNode) {
+      this.messageList.insertBefore(elements.wrapper, referenceNode);
+    } else {
+      this.messageList.appendChild(elements.wrapper);
+    }
+    this.messageElements[index] = elements;
+    this.applyMessageStatus(elements.wrapper, message);
+    this.ensureDisclaimer();
+    return elements;
+  }
+
   private updateMessageContentAt(index: number, content: string, timestamp?: Date): void {
     const message = this.messages[index];
     if (!message) {
@@ -2427,7 +2468,7 @@ export class ChatWidget {
     if (timestamp) {
       message.timestamp = timestamp;
     }
-    const refs = this.messageElements[index];
+    const refs = this.ensureMessageElement(index);
     if (refs) {
       const typingContent = refs.bubble.querySelector<HTMLElement>(".acw-typing-content");
       const typingCursor = refs.bubble.querySelector<HTMLSpanElement>(".acw-typing-cursor");
@@ -2436,13 +2477,6 @@ export class ChatWidget {
         this.attachTypingCursor(typingContent, typingCursor);
       } else {
         refs.bubble.innerHTML = this.renderMessageHtml(message);
-      }
-      if (message.isToolPlaceholder) {
-        refs.wrapper.classList.add("acw-message-tool-placeholder-hidden");
-        refs.bubble.textContent = "";
-        refs.timestamp.textContent = "";
-      } else {
-        refs.wrapper.classList.remove("acw-message-tool-placeholder-hidden");
       }
       if (timestamp) {
         refs.timestamp.textContent = formatTime(timestamp, this.options.locale);
@@ -3020,6 +3054,7 @@ export class ChatWidget {
         return;
       }
       const updatedContent = (this.historyContents[index] ?? "") + decodedText;
+      const trimmedUpdatedContent = updatedContent.trim();
       this.historyContents[index] = updatedContent;
       if (this.messages[index]) {
         const existing = this.messages[index];
@@ -3045,7 +3080,9 @@ export class ChatWidget {
         };
         this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
       }
-      if (updatedContent.trim().length > 0) {
+      if (isToolCall && trimmedUpdatedContent.length === 0) {
+        this.pendingToolCall = { anchorIndex: index };
+      } else if (trimmedUpdatedContent.length > 0) {
         this.pendingToolCall = null;
       }
       this.scrollToBottom({ smooth: true });
@@ -3081,6 +3118,14 @@ export class ChatWidget {
       };
       this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
       targetIndex = this.messages.length - 1;
+    }
+
+    if (shouldShowPlaceholder) {
+      const existingRefs = this.messageElements[targetIndex];
+      if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
+        existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
+      }
+      this.messageElements[targetIndex] = null;
     }
 
     if (shouldShowPlaceholder) {
@@ -3251,6 +3296,7 @@ export class ChatWidget {
       return;
     }
     this.messageElements.push(elements);
+    this.ensureDisclaimer();
 
     const { bubble, timestamp: metadata, wrapper } = elements;
     wrapper.classList.add("acw-message-streaming");
