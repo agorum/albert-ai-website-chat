@@ -2726,9 +2726,10 @@ export class ChatWidget {
     }
     
     const hasText = message.content.trim().length > 0;
+    const isStreamingAgent = message.role === "agent" && this.isAwaitingAgent;
     
-    // Don't render messages without text
-    if (!hasText) {
+    // Don't render messages without text, unless it's an agent message being streamed
+    if (!hasText && !isStreamingAgent) {
       return null;
     }
     
@@ -2739,6 +2740,31 @@ export class ChatWidget {
 
     // Build the DOM node on demand so chronological order stays intact even after lazy creation.
     const elements = this.buildMessageElement(message);
+    
+    // If this is an agent message being streamed, add typing cursor
+    if (isStreamingAgent && !elements.bubble.querySelector(".acw-typing-cursor")) {
+      const bubble = elements.bubble;
+      bubble.classList.add("acw-bubble-typing");
+      elements.wrapper.classList.add("acw-typing");
+      
+      const content = document.createElement("div");
+      content.className = "acw-typing-content";
+      content.innerHTML = bubble.innerHTML;
+      bubble.innerHTML = "";
+      bubble.appendChild(content);
+      
+      const cursor = document.createElement("span");
+      cursor.className = "acw-typing-cursor";
+      bubble.appendChild(cursor);
+      this.attachTypingCursor(content, cursor);
+      
+      // Update typing indicator references
+      this.typingIndicator = elements.wrapper;
+      this.typingIndicatorContent = content;
+      this.typingIndicatorCursor = cursor;
+      this.typingIndicatorTimestamp = elements.timestamp;
+      this.typingIndicatorIsStandalone = false;
+    }
     
     const referenceNode = this.findNextMessageNode(index);
     if (referenceNode) {
@@ -3461,9 +3487,6 @@ export class ChatWidget {
     const hasRenderableText = baseContent.trim().length > 0;
 
     if (append && this.historyContents[index] !== undefined) {
-      if (!decodedText) {
-        return;
-      }
       // Streaming chunk: extend the existing text buffer and update the rendered message.
       const updatedContent = (this.historyContents[index] ?? "") + decodedText;
       const trimmedUpdatedContent = updatedContent.trim();
@@ -3487,8 +3510,9 @@ export class ChatWidget {
         };
         this.messages[index] = updatedMessage;
         
-        // Only update if there's actual text to show
-        if (nowHasText) {
+        // Update DOM if text exists or if this is an agent message being streamed
+        const shouldUpdate = nowHasText || (role === "agent" && this.isAwaitingAgent);
+        if (shouldUpdate) {
           this.updateMessageContentAt(index, updatedContent, timestamp);
         }
       } else {
