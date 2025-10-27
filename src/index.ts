@@ -1549,13 +1549,33 @@ export class ChatWidget {
       const trimmedText = decodedText.trim();
       const isToolCall = Boolean(entry.isToolCall);
       const hasRenderableText = trimmedText.length > 0;
+      
+      // For toolCalls without text, check if they should be shown as placeholder
+      let isToolPlaceholder = false;
+      if (isToolCall && !hasRenderableText) {
+        // Look ahead to see if there's a following message with text
+        const nextIndex = index + 1;
+        if (nextIndex < history.length) {
+          const nextEntry = history[nextIndex];
+          const nextText = (nextEntry.text ?? "").trim();
+          if (nextText.length === 0) {
+            // Following message has no text yet → show placeholder
+            isToolPlaceholder = true;
+          }
+          // If following message has text, don't show placeholder (message will be hidden)
+        } else {
+          // No following message → show placeholder
+          isToolPlaceholder = true;
+        }
+      }
+      
       const message: ChatMessage = {
         role,
         content: hasRenderableText ? decodedText : "",
         timestamp: this.parseTimestamp(entry.dateTime),
         status: role === "user" ? "sent" : undefined,
         localOnly: false,
-        isToolPlaceholder: isToolCall && !hasRenderableText,
+        isToolPlaceholder,
       };
       this.historyContents.push(decodedText);
       this.addMessage(message, { autoScroll: false });
@@ -3411,8 +3431,10 @@ export class ChatWidget {
     const { fullRefresh = false } = options;
     const history = response.history ?? [];
     const running = Boolean(response.running);
-    // Don't rebuild during streaming to preserve typing indicator state
-    const shouldRebuild = !running && (fullRefresh || this.hasLocalOnlyMessages());
+    
+    // Never rebuild if we're just transitioning from streaming to not streaming
+    // to preserve toolCalls with text
+    const shouldRebuild = fullRefresh || (!running && this.hasLocalOnlyMessages() && !this.isAwaitingAgent);
 
     if (shouldRebuild) {
       this.hydrateMessagesFromHistory(history);
@@ -3581,6 +3603,7 @@ export class ChatWidget {
       };
       this.messages[index] = updatedMessage;
       
+
       // Determine if we should show this message
       const messageHasText = newContent.trim().length > 0;
       const shouldShowMessage = messageHasText || shouldShowPlaceholder || (role === "agent" && isStreaming);
