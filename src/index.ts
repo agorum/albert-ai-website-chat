@@ -1392,8 +1392,10 @@ export class ChatWidget {
   ): void {
     this.messages.push(message);
     // Placeholder entries reserve history positions but should not render a bubble until text exists.
+    // Also don't render normal messages without text (wait until text arrives)
     let elements: MessageElementRefs | null = null;
-    if (!message.isToolPlaceholder) {
+    const hasText = message.content.trim().length > 0;
+    if (!message.isToolPlaceholder && hasText) {
       elements = this.appendMessageElement(message, options);
       if (elements) {
         this.applyMessageStatus(elements.wrapper, message);
@@ -1537,7 +1539,7 @@ export class ChatWidget {
     }
 
     let pendingToolCall: { anchorIndex: number | null } | null = null;
-    history.forEach((entry) => {
+    history.forEach((entry, index) => {
       const role = this.mapServiceRole(entry.role);
       const rawText = entry.text ?? "";
       const decodedText = decodeHtmlEntities(rawText);
@@ -1554,12 +1556,28 @@ export class ChatWidget {
       };
       this.historyContents.push(decodedText);
       this.addMessage(message, { autoScroll: false });
-      // Remember the placeholder index so the spinner stays visible until any subsequent text is received.
+      
+      // Determine if this tool call should show a placeholder
       if (isToolCall && !hasRenderableText) {
-        pendingToolCall = { anchorIndex: this.messages.length - 1 };
-      } else if (hasRenderableText) {
-        pendingToolCall = null;
+        // Check if there's a following message and if it has text
+        const nextIndex = index + 1;
+        if (nextIndex < history.length) {
+          const nextEntry = history[nextIndex];
+          const nextText = (nextEntry.text ?? "").trim();
+          if (nextText.length === 0) {
+            // Following message has no text yet → show placeholder
+            pendingToolCall = { anchorIndex: this.messages.length - 1 };
+          } else {
+            // Following message has text → don't show placeholder for this tool call
+            pendingToolCall = null;
+          }
+        } else {
+          // No following message → show placeholder
+          pendingToolCall = { anchorIndex: this.messages.length - 1 };
+        }
       }
+      // Note: We don't reset pendingToolCall when hasRenderableText is true
+      // because a previous tool call might still be waiting for its following message
     });
     this.pendingToolCall = pendingToolCall;
 
@@ -2672,7 +2690,8 @@ export class ChatWidget {
     }
     const message = this.messages[index];
     // Ignore placeholder messages: they intentionally have no rendered bubble yet.
-    if (!message || message.isToolPlaceholder) {
+    // Also ignore messages without text content.
+    if (!message || message.isToolPlaceholder || message.content.trim().length === 0) {
       return null;
     }
     const existing = this.messageElements[index];
@@ -2921,6 +2940,30 @@ export class ChatWidget {
       return;
     }
     this.showToolActivityIndicator(this.pendingToolCall.anchorIndex);
+  }
+
+  /**
+   * Determines whether a tool call placeholder should be shown.
+   * Placeholder is only shown if:
+   * - It's a tool call without text
+   * - AND there is no following message, OR the following message has no text yet
+   */
+  private shouldShowToolCallPlaceholder(index: number, isToolCall: boolean, hasText: boolean): boolean {
+    if (!isToolCall || hasText) {
+      return false;
+    }
+    
+    // Check if there is a following message
+    const nextMessage = this.messages[index + 1];
+    if (!nextMessage) {
+      // No following message → show placeholder
+      return true;
+    }
+    
+    // Check if following message has text
+    const nextContent = (this.historyContents[index + 1] || nextMessage.content || '').trim();
+    // Only show placeholder if following message has no text
+    return nextContent.length === 0;
   }
 
   /**
@@ -3346,8 +3389,14 @@ export class ChatWidget {
       const updatedContent = (this.historyContents[index] ?? "") + decodedText;
       const trimmedUpdatedContent = updatedContent.trim();
       this.historyContents[index] = updatedContent;
+      
+      // Check if this message now has text when it previously didn't
+      const previouslyHadText = (existingContent || "").trim().length > 0;
+      const nowHasText = trimmedUpdatedContent.length > 0;
+      
       if (this.messages[index]) {
         const existing = this.messages[index];
+        const wasPlaceholder = existing.isToolPlaceholder;
         const updatedMessage: ChatMessage = {
           ...existing,
           role,
@@ -3358,7 +3407,11 @@ export class ChatWidget {
           isToolPlaceholder: false,
         };
         this.messages[index] = updatedMessage;
-        this.updateMessageContentAt(index, updatedContent, timestamp);
+        
+        // Only update if there's actual text to show
+        if (nowHasText) {
+          this.updateMessageContentAt(index, updatedContent, timestamp);
+        }
       } else {
         const message: ChatMessage = {
           role,
@@ -3370,12 +3423,23 @@ export class ChatWidget {
         };
         this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
       }
-      // Keep the placeholder anchored while the tool call has no text; drop it on the first visible character.
-      if (isToolCall && trimmedUpdatedContent.length === 0) {
+      
+      // Update placeholder logic: use the helper method
+      if (this.shouldShowToolCallPlaceholder(index, isToolCall, nowHasText)) {
         this.pendingToolCall = { anchorIndex: index };
-      } else if (trimmedUpdatedContent.length > 0) {
-        this.pendingToolCall = null;
+      } else if (nowHasText) {
+        // Text arrived → check if this is a follow-up to a previous tool call placeholder
+        if (index > 0) {
+          const prevMessage = this.messages[index - 1];
+          if (prevMessage?.isToolPlaceholder) {
+            // Previous message was a tool call placeholder → hide it now
+            this.pendingToolCall = null;
+          }
+        } else {
+          this.pendingToolCall = null;
+        }
       }
+      
       this.scrollToBottom({ smooth: true });
       this.ensureWelcomeMessage();
       this.ensureDisclaimer();
@@ -3385,8 +3449,9 @@ export class ChatWidget {
 
     // Fresh or replaced entry: store the full text snapshot before deciding on placeholder handling.
     this.historyContents[index] = baseContent;
-    const shouldShowPlaceholder = isToolCall && !hasRenderableText;
+    const shouldShowPlaceholder = this.shouldShowToolCallPlaceholder(index, isToolCall, hasRenderableText);
     let targetIndex = index;
+    
     if (this.messages[index]) {
       const updatedMessage: ChatMessage = {
         ...this.messages[index],
@@ -3398,7 +3463,18 @@ export class ChatWidget {
         isToolPlaceholder: shouldShowPlaceholder,
       };
       this.messages[index] = updatedMessage;
-      this.updateMessageContentAt(index, updatedMessage.content, timestamp);
+      
+      // Only update the DOM if there's text to display
+      if (hasRenderableText) {
+        this.updateMessageContentAt(index, updatedMessage.content, timestamp);
+      } else if (!shouldShowPlaceholder) {
+        // No text and no placeholder → remove any existing element
+        const existingRefs = this.messageElements[index];
+        if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
+          existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
+        }
+        this.messageElements[index] = null;
+      }
     } else {
       const message: ChatMessage = {
         role,
@@ -3421,11 +3497,16 @@ export class ChatWidget {
       this.messageElements[targetIndex] = null;
     }
 
-    // Maintain the global indicator reference until follow-up text arrives; otherwise clear it.
+    // Update pending tool call state
     if (shouldShowPlaceholder) {
       this.pendingToolCall = { anchorIndex: targetIndex };
-    } else if (hasRenderableText) {
-      this.pendingToolCall = null;
+    } else if (hasRenderableText && index > 0) {
+      // Check if previous message was a tool call placeholder
+      const prevMessage = this.messages[index - 1];
+      if (prevMessage?.isToolPlaceholder) {
+        // This message has text and follows a placeholder → hide the placeholder
+        this.pendingToolCall = null;
+      }
     }
 
     this.scrollToBottom({ smooth: true });
