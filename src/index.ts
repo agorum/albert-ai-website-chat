@@ -3553,7 +3553,10 @@ export class ChatWidget {
     }
 
     // Fresh or replaced entry: store the full text snapshot before deciding on placeholder handling.
-    this.historyContents[index] = baseContent;
+    // Only update historyContents if we have new text, otherwise keep existing
+    if (decodedText || !this.historyContents[index]) {
+      this.historyContents[index] = baseContent;
+    }
     const shouldShowPlaceholder = this.shouldShowToolCallPlaceholder(index, isToolCall, hasRenderableText);
     let targetIndex = index;
     
