@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Albert Chat Widget - Tool Call Test</title>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            color: #1f2937;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #6b7280;
+            line-height: 1.6;
+            margin: 20px 0;
+        }
+        .test-controls {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #e5e7eb;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Tool Call Test</h1>
+        <p>
+            Diese Seite testet die neue Tool-Call-Implementierung des Albert Chat Widgets.
+            Der Chat simuliert Server-Responses mit Tool-Calls und überprüft das korrekte Verhalten.
+        </p>
+        
+        <div class="test-controls">
+            <h3>Simulierte Server-Szenarien:</h3>
+            <button onclick="simulateToolCallWithText()">Tool-Call mit Text</button>
+            <button onclick="simulateToolCallWithoutText()">Tool-Call ohne Text</button>
+            <button onclick="simulateToolCallThenText()">Tool-Call → dann Text</button>
+            <button onclick="simulateMultipleToolCalls()">Mehrere Tool-Calls</button>
+            <button onclick="resetChat()">Chat zurücksetzen</button>
+            
+            <div id="status" class="status">
+                Status: Bereit für Tests
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Widget -->
+    <script src="../dist/index.global.js"></script>
+    <script>
+        let chatWidget;
+        let mockServerResponses = [];
+        let responseIndex = 0;
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = `Status: ${message}`;
+        }
+        
+        // Initialize chat widget with mock service
+        window.addEventListener('DOMContentLoaded', () => {
+            chatWidget = new AlbertChat({
+                requirePrivacyConsent: false,
+                welcomeMessage: {
+                    enabled: true,
+                    text: "Hallo! Dies ist ein Test für Tool-Calls."
+                },
+                serviceConfig: {
+                    endpoint: 'mock://test',
+                    pollIntervalMs: 100
+                }
+            });
+            
+            // Override fetch to simulate server responses
+            const originalFetch = window.fetch;
+            window.fetch = async (url, options) => {
+                if (typeof url === 'string' && url.includes('mock://test')) {
+                    // Simulate server response
+                    return new Response(JSON.stringify(getNextMockResponse()), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+                return originalFetch(url, options);
+            };
+            
+            chatWidget.mount();
+            updateStatus('Chat Widget initialisiert');
+        });
+        
+        function getNextMockResponse() {
+            if (responseIndex < mockServerResponses.length) {
+                return mockServerResponses[responseIndex++];
+            }
+            return {
+                running: false,
+                offsets: { history: 0, text: 0 },
+                history: []
+            };
+        }
+        
+        function simulateToolCallWithText() {
+            responseIndex = 0;
+            mockServerResponses = [
+                // User message
+                {
+                    running: true,
+                    offsets: { history: 1, text: 0 },
+                    history: [{
+                        role: "user",
+                        text: "Suche nach Information über agorum",
+                        isToolCall: false
+                    }]
+                },
+                // Assistant announces tool call
+                {
+                    running: true,
+                    offsets: { history: 2, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "Ich suche jetzt nach Informationen über agorum.",
+                        isToolCall: true
+                    }]
+                },
+                // Tool call completed, assistant responds
+                {
+                    running: false,
+                    offsets: { history: 3, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "Ich habe folgende Informationen gefunden: agorum ist ein Softwareunternehmen...",
+                        isToolCall: false
+                    }]
+                }
+            ];
+            updateStatus('Simuliere: Tool-Call mit Text');
+        }
+        
+        function simulateToolCallWithoutText() {
+            responseIndex = 0;
+            mockServerResponses = [
+                // User message
+                {
+                    running: true,
+                    offsets: { history: 1, text: 0 },
+                    history: [{
+                        role: "user",
+                        text: "Crawle die Website von agorum",
+                        isToolCall: false
+                    }]
+                },
+                // Tool call without announcement
+                {
+                    running: true,
+                    offsets: { history: 2, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "",
+                        isToolCall: true
+                    }]
+                },
+                // Still running, no text yet
+                {
+                    running: true,
+                    offsets: { history: 2, text: 0 },
+                    history: []
+                },
+                // Tool completed, response comes
+                {
+                    running: false,
+                    offsets: { history: 3, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "Die Website wurde erfolgreich gecrawlt. Hier sind die Ergebnisse...",
+                        isToolCall: false
+                    }]
+                }
+            ];
+            updateStatus('Simuliere: Tool-Call ohne Text → Placeholder sollte erscheinen');
+        }
+        
+        function simulateToolCallThenText() {
+            responseIndex = 0;
+            mockServerResponses = [
+                // User message
+                {
+                    running: true,
+                    offsets: { history: 1, text: 0 },
+                    history: [{
+                        role: "user",
+                        text: "Analysiere die Daten",
+                        isToolCall: false
+                    }]
+                },
+                // Tool call starts
+                {
+                    running: true,
+                    offsets: { history: 2, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "",
+                        isToolCall: true
+                    }]
+                },
+                // Next message starts appearing
+                {
+                    running: true,
+                    offsets: { history: 3, text: 5 },
+                    history: [{
+                        role: "assistant",
+                        text: "Die A",
+                        isToolCall: false
+                    }]
+                },
+                // More text streams in
+                {
+                    running: true,
+                    offsets: { history: 2, text: 20 },
+                    history: [{
+                        role: "assistant",
+                        text: "nalyse ist fertig.",
+                        isToolCall: false
+                    }]
+                },
+                // Complete
+                {
+                    running: false,
+                    offsets: { history: 3, text: 0 },
+                    history: []
+                }
+            ];
+            updateStatus('Simuliere: Tool-Call → Placeholder verschwindet wenn Text kommt');
+        }
+        
+        function simulateMultipleToolCalls() {
+            responseIndex = 0;
+            mockServerResponses = [
+                // User message
+                {
+                    running: true,
+                    offsets: { history: 1, text: 0 },
+                    history: [{
+                        role: "user",
+                        text: "Führe mehrere Analysen durch",
+                        isToolCall: false
+                    }]
+                },
+                // First tool call
+                {
+                    running: true,
+                    offsets: { history: 2, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "",
+                        isToolCall: true
+                    }]
+                },
+                // Second tool call
+                {
+                    running: true,
+                    offsets: { history: 3, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "",
+                        isToolCall: true
+                    }]
+                },
+                // Third tool call
+                {
+                    running: true,
+                    offsets: { history: 4, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "",
+                        isToolCall: true
+                    }]
+                },
+                // Final response
+                {
+                    running: false,
+                    offsets: { history: 5, text: 0 },
+                    history: [{
+                        role: "assistant",
+                        text: "Alle Analysen abgeschlossen. Hier sind die Ergebnisse...",
+                        isToolCall: false
+                    }]
+                }
+            ];
+            updateStatus('Simuliere: Mehrere Tool-Calls nacheinander');
+        }
+        
+        function resetChat() {
+            if (chatWidget) {
+                chatWidget.resetConversation();
+                responseIndex = 0;
+                mockServerResponses = [];
+                updateStatus('Chat zurückgesetzt');
+            }
+        }
+    </script>
+</body>
+</html>

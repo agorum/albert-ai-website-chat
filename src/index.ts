@@ -99,6 +99,7 @@ export interface ChatMessage {
   status?: "pending" | "sent" | "failed";
   localOnly?: boolean;
   isToolPlaceholder?: boolean;
+  isToolCall?: boolean;
 }
 
 export interface ChatServiceConfig {
@@ -1537,48 +1538,38 @@ export class ChatWidget {
    * Rebuilds the local message arrays from a server-provided history snapshot.
    */
   private hydrateMessagesFromHistory(history: ChatServiceHistoryEntry[]): void {
-    console.log('[hydrateMessagesFromHistory] REBUILDING ALL MESSAGES, history entries:', history.length);
-    
-    // Log what we're losing
-    if (this.messages.length > 0) {
-      console.log('LOSING EXISTING MESSAGES:', this.messages.map((m, i) => ({
-        index: i,
-        content: m.content?.substring(0, 50),
-        isToolPlaceholder: m.isToolPlaceholder
-      })));
-    }
-    
     this.messages = [];
     this.messageElements = [];
     this.historyContents = [];
+    this.toolCallTextCache.clear();
+    this.pendingToolCall = null;
+    
     if (this.messageList) {
       this.clearMessageList();
     }
 
     let pendingToolCall: { anchorIndex: number | null } | null = null;
+    
     history.forEach((entry, index) => {
       const role = this.mapServiceRole(entry.role);
       const rawText = entry.text ?? "";
       const decodedText = decodeHtmlEntities(rawText);
       const trimmedText = decodedText.trim();
-      
-      // Log the raw entry data for debugging
-      if (entry.isToolCall) {
-        console.log(`[hydrate RAW] Index ${index}: text="${rawText?.substring(0, 50)}", entry:`, entry);
-      }
       const isToolCall = Boolean(entry.isToolCall);
+      // Only cache actual tool responses (role="tool"), not assistant announcements
+      const isActualToolResponse = entry.role === "tool";
       
-      // For toolCalls, check cache if server doesn't send text
+      // For actual tool responses, check cache if server doesn't send text
       let effectiveText = decodedText;
-      if (isToolCall) {
+      if (isActualToolResponse) {
         if (trimmedText.length > 0) {
           // Server sent text, update cache
           this.toolCallTextCache.set(index, decodedText);
-          console.log(`[CACHE] Storing toolCall text at index ${index}: "${decodedText.substring(0, 50)}"`);
+          console.log(`[CACHE] Storing tool response text at index ${index}: "${decodedText.substring(0, 50)}"`);
         } else if (this.toolCallTextCache.has(index)) {
           // No text from server, use cached text
           effectiveText = this.toolCallTextCache.get(index)!;
-          console.log(`[CACHE] Retrieving toolCall text at index ${index}: "${effectiveText.substring(0, 50)}"`);
+          console.log(`[CACHE] Retrieving tool response text at index ${index}: "${effectiveText.substring(0, 50)}"`);
         }
       }
       
@@ -1611,6 +1602,8 @@ export class ChatWidget {
         localOnly: false,
         isToolPlaceholder,
       };
+      // Store isToolCall as additional property for debugging
+      (message as any).isToolCall = isToolCall;
       
       // Debug logging for toolCalls
       if (isToolCall) {
@@ -2754,13 +2747,20 @@ export class ChatWidget {
     if (!this.messageList) {
       return null;
     }
+    
+    // Find the next higher index that's already rendered
     for (let candidate = index + 1; candidate < this.messageElements.length; candidate += 1) {
       const refs = this.messageElements[candidate];
       if (refs?.wrapper && refs.wrapper.parentElement === this.messageList) {
         return refs.wrapper;
       }
     }
-    if (this.typingIndicator && this.typingIndicator.parentElement === this.messageList) {
+    
+    // If no higher index found, check special elements at the end
+    // IMPORTANT: Only use typingIndicator if it's standalone (not a message with an index)
+    if (this.typingIndicator && 
+        this.typingIndicator.parentElement === this.messageList &&
+        this.typingIndicatorIsStandalone) {
       return this.typingIndicator;
     }
     if (this.toolActivityIndicator && this.toolActivityIndicator.parentElement === this.messageList) {
@@ -2769,7 +2769,43 @@ export class ChatWidget {
     if (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
       return this.disclaimerElement;
     }
+    
     return null;
+  }
+  
+  /**
+   * Finds the correct insertion point for a message by looking backwards for lower indices.
+   * This ensures chronological order even when messages arrive out of sequence.
+   */
+  private findInsertionPoint(index: number): ChildNode | null {
+    if (!this.messageList) {
+      console.log(`[findInsertionPoint] Index ${index}: No messageList`);
+      return null;
+    }
+    
+    // First, check if there's a next higher index (preferred method)
+    const nextNode = this.findNextMessageNode(index);
+    if (nextNode) {
+      console.log(`[findInsertionPoint] Index ${index}: Found nextNode (higher index), inserting BEFORE it`);
+      return nextNode;
+    }
+    
+    console.log(`[findInsertionPoint] Index ${index}: No higher index found, searching backwards...`);
+    
+    // If no higher index, we should insert AFTER the highest lower index
+    // Find the highest index < current index that's already in DOM
+    for (let candidate = index - 1; candidate >= 0; candidate -= 1) {
+      const refs = this.messageElements[candidate];
+      if (refs?.wrapper && refs.wrapper.parentElement === this.messageList) {
+        // Found a lower index - insert after it
+        console.log(`[findInsertionPoint] Index ${index}: Found lower index ${candidate}, inserting AFTER it`);
+        return refs.wrapper.nextSibling;
+      }
+    }
+    
+    // No elements before or after - insert at the beginning (before welcome message if it exists)
+    console.log(`[findInsertionPoint] Index ${index}: No elements found, inserting at beginning`);
+    return this.messageList.firstChild;
   }
 
   /**
@@ -2777,19 +2813,26 @@ export class ChatWidget {
    */
   private ensureMessageElement(index: number): MessageElementRefs | null {
     if (!this.messageList) {
+      console.log(`[ensureMessageElement] Index ${index}: No messageList!`);
       return null;
     }
     const message = this.messages[index];
     // Ignore placeholder messages: they intentionally have no rendered bubble yet.
     if (!message || message.isToolPlaceholder) {
+      console.log(`[ensureMessageElement] Index ${index}: No message or isToolPlaceholder=${message?.isToolPlaceholder}`);
       return null;
     }
     
     const hasText = message.content.trim().length > 0;
     const isStreamingAgent = message.role === "agent" && this.isAwaitingAgent;
+    const isToolCall = (message as any).isToolCall || false;
+    
+    console.log(`[ensureMessageElement] Index ${index}: hasText=${hasText}, isStreamingAgent=${isStreamingAgent}, isToolCall=${isToolCall}, content length=${message.content.length}`);
     
     // Don't render messages without text, unless it's an agent message being streamed
+    // IMPORTANT: Tool calls with text should ALWAYS be rendered, even when marked as tool call
     if (!hasText && !isStreamingAgent) {
+      console.log(`[ensureMessageElement] Index ${index}: SKIPPING - No text and not streaming`);
       return null;
     }
     
@@ -2826,7 +2869,7 @@ export class ChatWidget {
       this.typingIndicatorIsStandalone = false;
     }
     
-    const referenceNode = this.findNextMessageNode(index);
+    const referenceNode = this.findInsertionPoint(index);
     if (referenceNode) {
       this.messageList.insertBefore(elements.wrapper, referenceNode);
     } else {
@@ -2844,9 +2887,23 @@ export class ChatWidget {
   private updateMessageContentAt(index: number, content: string, timestamp?: Date): void {
     const message = this.messages[index];
     if (!message) {
+      console.log(`[updateMessageContentAt] Index ${index}: No message in messages array!`);
       return;
     }
-    message.content = content;
+    const isToolCall = (message as any).isToolCall || false;
+    
+    // For tool responses (role="agent" with isToolCall), ensure we use the full cached text if available
+    let effectiveContent = content;
+    if (isToolCall && message.role === "agent" && this.toolCallTextCache.has(index)) {
+      const cachedText = this.toolCallTextCache.get(index)!;
+      if (cachedText.length > content.length) {
+        effectiveContent = cachedText;
+        console.log(`[updateMessageContentAt] Index ${index}: Using full cached text (${cachedText.length} chars vs ${content.length} chars provided)`);
+      }
+    }
+    console.log(`[updateMessageContentAt] Index ${index}: isToolCall=${isToolCall}, content length=${effectiveContent.length}`);
+    
+    message.content = effectiveContent;
     if (timestamp) {
       message.timestamp = timestamp;
     }
@@ -3047,6 +3104,122 @@ export class ChatWidget {
    * Removes the tool activity indicator from the DOM if present.
    */
   private hideToolActivityIndicator(): void {
+    if (this.toolActivityIndicator?.parentElement) {
+      this.toolActivityIndicator.parentElement.removeChild(this.toolActivityIndicator);
+    }
+  }
+  
+  /**
+   * Updates the pending tool call state based on current messages.
+   */
+  private updatePendingToolCallState(): void {
+    this.pendingToolCall = null;
+    
+    // Look for the last message that is a tool call
+    // The placeholder should be shown after the tool call message
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const message = this.messages[i];
+      if (!message) continue;
+      
+      const isToolCall = Boolean((message as any).isToolCall);
+      const hasText = (message.content || '').trim().length > 0;
+      
+      console.log(`[updatePendingToolCallState] Index ${i}: isToolCall=${isToolCall}, hasText=${hasText}`);
+      
+      if (isToolCall) {
+        // Check if there's a following message that's not a tool call
+        const nextMessage = this.messages[i + 1];
+        const nextIsToolCall = nextMessage ? Boolean((nextMessage as any).isToolCall) : false;
+        
+        if (!nextMessage || nextIsToolCall) {
+          // No following message or next is also a tool call → show placeholder after this one
+          this.pendingToolCall = { anchorIndex: i };
+          console.log(`[updatePendingToolCallState] Set pendingToolCall with anchorIndex=${i}`);
+          break;
+        }
+      }
+    }
+  }
+  
+  /**
+   * Shows the tool call placeholder "Recherchiere...".
+   */
+  private showToolCallPlaceholder(): void {
+    if (!this.messageList || !this.pendingToolCall) {
+      console.log('[showToolCallPlaceholder] No messageList or pendingToolCall');
+      return;
+    }
+    
+    console.log(`[showToolCallPlaceholder] Showing placeholder for anchorIndex=${this.pendingToolCall.anchorIndex}`);
+    
+    // Hide typing indicator if showing tool placeholder
+    this.hideTypingIndicator();
+    
+    // Check if placeholder already exists
+    if (this.toolActivityIndicator?.parentElement === this.messageList) {
+      console.log('[showToolCallPlaceholder] Placeholder already exists');
+      return;
+    }
+    
+    // Create placeholder element
+    if (!this.toolActivityIndicator) {
+      this.toolActivityIndicator = document.createElement('div');
+      this.toolActivityIndicator.className = 'acw-message acw-message-agent acw-tool-placeholder';
+    }
+    
+    // Create bubble with placeholder text
+    const bubble = document.createElement('div');
+    bubble.className = 'acw-bubble';
+    bubble.textContent = this.options.texts.toolCallPlaceholder;
+    
+    // Add pulsing cursor
+    const cursor = document.createElement('span');
+    cursor.className = 'acw-typing-cursor';
+    bubble.appendChild(cursor);
+    
+    this.toolActivityIndicator.innerHTML = '';
+    this.toolActivityIndicator.appendChild(bubble);
+    
+    // Insert after the anchor message or at the end
+    const anchorIndex = this.pendingToolCall.anchorIndex;
+    if (anchorIndex !== null) {
+      const anchorElement = this.messageElements[anchorIndex]?.wrapper;
+      if (anchorElement?.parentElement === this.messageList) {
+        const nextSibling = anchorElement.nextElementSibling;
+        if (nextSibling && !nextSibling.classList.contains('acw-disclaimer')) {
+          this.messageList.insertBefore(this.toolActivityIndicator, nextSibling);
+        } else {
+          // Insert before disclaimer or at end
+          if (this.disclaimerElement?.parentElement === this.messageList) {
+            this.messageList.insertBefore(this.toolActivityIndicator, this.disclaimerElement);
+          } else {
+            this.messageList.appendChild(this.toolActivityIndicator);
+          }
+        }
+      } else {
+        // Fallback: insert at end
+        if (this.disclaimerElement?.parentElement === this.messageList) {
+          this.messageList.insertBefore(this.toolActivityIndicator, this.disclaimerElement);
+        } else {
+          this.messageList.appendChild(this.toolActivityIndicator);
+        }
+      }
+    } else {
+      // No anchor, insert at end
+      if (this.disclaimerElement?.parentElement === this.messageList) {
+        this.messageList.insertBefore(this.toolActivityIndicator, this.disclaimerElement);
+      } else {
+        this.messageList.appendChild(this.toolActivityIndicator);
+      }
+    }
+    
+    this.scrollToBottom({ smooth: true });
+  }
+  
+  /**
+   * Hides the tool call placeholder.
+   */
+  private hideToolCallPlaceholder(): void {
     if (this.toolActivityIndicator?.parentElement) {
       this.toolActivityIndicator.parentElement.removeChild(this.toolActivityIndicator);
     }
@@ -3471,76 +3644,69 @@ export class ChatWidget {
     const { fullRefresh = false } = options;
     const history = response.history ?? [];
     const running = Boolean(response.running);
+    const prevRunning = this.isAwaitingAgent;
     
-    // Track if we just finished streaming to prevent rebuild
-    const justFinishedStreaming = !running && this.isAwaitingAgent;
+    // Determine if we should rebuild from scratch
+    const shouldRebuild = fullRefresh || this.hasLocalOnlyMessages();
     
-    // Only rebuild if explicitly requested OR we have local messages AND we're not streaming
-    // Never rebuild when just transitioning from streaming to not-streaming
-    const shouldRebuild = (fullRefresh || this.hasLocalOnlyMessages()) && !running && !justFinishedStreaming;
-    
-    console.log('[processInfoResponse]', { 
-      running, 
-      isAwaitingAgent: this.isAwaitingAgent,
-      justFinishedStreaming,
-      shouldRebuild,
-      hasLocalOnly: this.hasLocalOnlyMessages()
-    });
-
-    if (shouldRebuild) {
+    if (shouldRebuild && history.length) {
       this.hydrateMessagesFromHistory(history);
       this.removeLocalAgentMessages();
-    } else if (history.length) {
-      const baseIndex = this.chatOffsets ? this.chatOffsets.history : 0;
-      const continuingSameEntry = !!this.chatOffsets && this.chatOffsets.text > 0;
-
-      history.forEach((entry, index) => {
-        const targetIndex = baseIndex + index;
-        const appendExisting = continuingSameEntry && index === 0;
-        this.applyHistoryEntry(targetIndex, entry, { append: appendExisting, isStreaming: running });
+    } else if (history.length && this.chatOffsets) {
+      // Incremental update
+      const baseIndex = this.chatOffsets.history;
+      const continuingText = this.chatOffsets.text > 0;
+      
+      history.forEach((entry, i) => {
+        const targetIndex = baseIndex + i;
+        const shouldAppend = continuingText && i === 0;
+        
+        this.applyHistoryEntry(targetIndex, entry, { 
+          append: shouldAppend, 
+          isStreaming: running 
+        });
       });
     }
 
+    // Update offsets
     if (response.offsets) {
       this.chatOffsets = response.offsets;
-    } else if (shouldRebuild) {
-      this.chatOffsets = {
-        history: history.length,
-        text: 0,
-      };
     } else if (!this.chatOffsets) {
-      this.chatOffsets = {
-        history: this.historyContents.length,
-        text: 0,
-      };
+      this.chatOffsets = { history: 0, text: 0 };
     }
 
-    this.hasLoadedInitialHistory ||= shouldRebuild || Boolean(history.length);
+    this.hasLoadedInitialHistory ||= Boolean(history.length);
 
-    if (!shouldRebuild && !this.messages.length && this.messageList && !this.typingIndicator) {
-      this.renderEmptyState();
-    }
+    // Update running state
     this.isAwaitingAgent = running;
-    if (!running) {
-      this.pendingToolCall = null;
-    }
-
+    
+    // Update pending tool call state based on current messages
+    this.updatePendingToolCallState();
+    
+    console.log(`[processInfoResponse] running=${running}, pendingToolCall=${this.pendingToolCall ? 'yes' : 'no'}`);
+    
+    // Manage typing indicator and tool call placeholder
     if (running) {
       this.scheduleNextPoll();
-      // Show typing indicator if agent is processing
-      this.showTypingIndicator();
+      if (this.pendingToolCall) {
+        console.log(`[processInfoResponse] Showing tool call placeholder`);
+        this.showToolCallPlaceholder();
+      } else {
+        this.showTypingIndicator();
+      }
     } else {
       this.hideTypingIndicator();
+      this.hideToolCallPlaceholder();
       this.stopPolling();
     }
 
     if (shouldRebuild) {
       this.removeFailedUserMessages();
     }
+    
     this.ensureWelcomeMessage();
     this.ensureDisclaimer();
     this.updateSendAvailability();
-    this.updateToolActivityIndicator();
   }
 
   /**
@@ -3558,217 +3724,91 @@ export class ChatWidget {
     const role = this.mapServiceRole(entry.role);
     const isToolCall = Boolean(entry.isToolCall);
     
-    if (isToolCall) {
-      console.log(`[applyHistoryEntry] Index ${index}: isToolCall=${isToolCall}, text="${decodedText.substring(0, 50)}", append=${append}, isStreaming=${isStreaming}`);
+    const existingMessage = this.messages[index];
+    const existingContent = this.historyContents[index] ?? "";
+    
+    // Calculate new content
+    let newContent: string;
+    if (append && existingContent) {
+      // Append mode: add to existing text
+      newContent = existingContent + decodedText;
+    } else {
+      // Replace mode: use new text
+      newContent = decodedText;
     }
     
-    // For toolCalls, use cache to preserve text
-    let effectiveDecodedText = decodedText;
-    if (isToolCall) {
-      if (decodedText.trim().length > 0) {
-        // New text from server, update cache
-        this.toolCallTextCache.set(index, decodedText);
-        console.log(`[CACHE UPDATE] Storing toolCall text at index ${index}: "${decodedText.substring(0, 50)}"`);
-      } else if (this.toolCallTextCache.has(index)) {
-        // No text from server, use cached text
-        effectiveDecodedText = this.toolCallTextCache.get(index)!;
-        console.log(`[CACHE HIT] Using cached toolCall text at index ${index}: "${effectiveDecodedText.substring(0, 50)}"`);
-      }
-    }
-    
-    // Get existing content from both sources
-    const existingHistoryContent = this.historyContents[index] ?? "";
-    const existingMessageContent = this.messages[index]?.content ?? "";
-    const existingContent = existingHistoryContent || existingMessageContent;
-    
-    // Use new text if available, otherwise keep existing
-    let baseContent = effectiveDecodedText || existingContent;
-    let hasRenderableText = baseContent.trim().length > 0;
+    // Update history contents
+    this.historyContents[index] = newContent;
+    const hasText = newContent.trim().length > 0;
 
-    if (append && this.historyContents[index] !== undefined) {
-      // Streaming chunk: extend the existing text buffer and update the rendered message.
-      // For toolCalls, don't append empty text - keep the cached version
-      let updatedContent: string;
-      if (isToolCall && decodedText.trim().length === 0) {
-        // ToolCall with no new text - use cached text
-        updatedContent = effectiveDecodedText;
-      } else {
-        // Normal append or new text
-        updatedContent = (this.historyContents[index] ?? "") + decodedText;
-      }
-      const trimmedUpdatedContent = updatedContent.trim();
-      this.historyContents[index] = updatedContent;
-      
-      // Check if this message now has text when it previously didn't
-      const previouslyHadText = (existingContent || "").trim().length > 0;
-      const nowHasText = trimmedUpdatedContent.length > 0;
-      
-      if (this.messages[index]) {
-        const existing = this.messages[index];
-        const wasPlaceholder = existing.isToolPlaceholder;
-        const updatedMessage: ChatMessage = {
-          ...existing,
-          role,
-          content: updatedContent,
-          timestamp,
-          status: role === "user" ? "sent" : existing?.status,
-          localOnly: false,
-          isToolPlaceholder: false,
-        };
-        this.messages[index] = updatedMessage;
-        
-        // Update DOM if text exists or if this is an agent message being streamed
-        const shouldUpdate = nowHasText || (role === "agent" && isStreaming);
-        if (shouldUpdate) {
-          this.updateMessageContentAt(index, updatedContent, timestamp);
-        }
-      } else {
-        const message: ChatMessage = {
-          role,
-          content: updatedContent,
-          timestamp,
-          status: role === "user" ? "sent" : undefined,
-          localOnly: false,
-          isToolPlaceholder: false,
-        };
-        this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
-      }
-      
-      // Update placeholder logic: use the helper method
-      if (this.shouldShowToolCallPlaceholder(index, isToolCall, nowHasText)) {
-        this.pendingToolCall = { anchorIndex: index };
-      } else if (nowHasText) {
-        // Text arrived → check if this is a follow-up to a previous tool call placeholder
-        if (index > 0) {
-          const prevMessage = this.messages[index - 1];
-          if (prevMessage?.isToolPlaceholder) {
-            // Previous message was a tool call placeholder → hide it now
-            this.pendingToolCall = null;
-          }
-        } else {
-          this.pendingToolCall = null;
-        }
-      }
-      
-      this.scrollToBottom({ smooth: true });
-      this.ensureWelcomeMessage();
-      this.ensureDisclaimer();
-      this.updateToolActivityIndicator();
-      return;
-    }
-
-    // Fresh or replaced entry: store the full text snapshot
-    // Always store the baseContent which includes existing text if no new text came
-    this.historyContents[index] = baseContent;
+    console.log(`[applyHistoryEntry] Index ${index}: role=${role}, isToolCall=${isToolCall}, hasText=${hasText}, text length=${newContent.length}`);
     
-    // Special handling for toolCalls: Never lose existing text!
-    if (isToolCall && this.messages[index]) {
-      const existingMessage = this.messages[index];
-      const existingHasText = existingMessage.content && existingMessage.content.trim().length > 0;
+    // Update or create message
+    if (existingMessage) {
+      // Check if this is a transition to tool call
+      const wasToolCall = Boolean((existingMessage as any).isToolCall);
+      const isTransitioningToToolCall = isToolCall && !wasToolCall && hasText;
       
-      // If this is a toolCall that already has text, and the server sends empty text,
-      // keep the existing text!
-      if (existingHasText && !hasRenderableText) {
-        console.log(`[PRESERVING] ToolCall at index ${index} has existing text, keeping it despite empty update`);
-        // Update baseContent to include existing text
-        const preservedContent = existingMessage.content;
-        this.historyContents[index] = preservedContent;
-        // Recalculate hasRenderableText
-        hasRenderableText = true;
-        baseContent = preservedContent;
-      }
-    }
-    
-    const shouldShowPlaceholder = this.shouldShowToolCallPlaceholder(index, isToolCall, hasRenderableText);
-    let targetIndex = index;
-    
-    if (this.messages[index]) {
-      // Keep existing content if no new text comes from server
-      const existingMessage = this.messages[index];
-      const existingContent = existingMessage.content || "";
-      const newContent = hasRenderableText ? baseContent : existingContent;
+      // Update existing message
+      existingMessage.content = newContent;
+      existingMessage.timestamp = timestamp;
+      (existingMessage as any).isToolCall = isToolCall;
+      existingMessage.localOnly = false;
+      existingMessage.status = role === "user" ? "sent" : undefined;
       
-      const updatedMessage: ChatMessage = {
-        ...this.messages[index],
-        role,
-        content: newContent,
-        timestamp,
-        status: role === "user" ? "sent" : this.messages[index]?.status,
-        localOnly: false,
-        isToolPlaceholder: shouldShowPlaceholder,
-      };
-      this.messages[index] = updatedMessage;
-      
-
-      // Determine if we should show this message
-      const messageHasText = newContent.trim().length > 0;
-      const shouldShowMessage = messageHasText || shouldShowPlaceholder || (role === "agent" && isStreaming);
-      
-      if (isToolCall) {
-        console.log(`[DISPLAY] Index ${index}: messageHasText=${messageHasText}, shouldShowPlaceholder=${shouldShowPlaceholder}, shouldShowMessage=${shouldShowMessage}, newContent="${newContent.substring(0, 50)}"`);
-      }
-      
-      if (shouldShowMessage) {
-        // Show or update the message
-        this.updateMessageContentAt(index, updatedMessage.content, timestamp);
-      } else {
-        // Only remove if it's a toolCall without text and we shouldn't show placeholder
-        console.warn(`[REMOVING] Index ${index}: Removing message element!`);
-        const existingRefs = this.messageElements[index];
-        if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
-          existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
+      // For tool calls with text, always render the text
+      // The placeholder will be shown separately if needed
+      const shouldRender = hasText || (role === "agent" && isStreaming);
+      if (shouldRender) {
+        this.updateMessageContentAt(index, newContent, timestamp);
+      } else if (this.messageElements[index]) {
+        // Remove DOM element if no text
+        const refs = this.messageElements[index];
+        if (refs?.wrapper?.parentElement) {
+          refs.wrapper.parentElement.removeChild(refs.wrapper);
         }
         this.messageElements[index] = null;
       }
+      
+      // If transitioning to tool call, we may need to show placeholder
+      if (isTransitioningToToolCall) {
+        console.log(`[applyHistoryEntry] Message at index ${index} transitioned to tool call`);
+      }
     } else {
+      // Create new message
       const message: ChatMessage = {
         role,
-        content: hasRenderableText ? baseContent : "",
+        content: newContent,
         timestamp,
         status: role === "user" ? "sent" : undefined,
         localOnly: false,
-        isToolPlaceholder: shouldShowPlaceholder,
+        isToolPlaceholder: false,
+        isToolCall: false, // Will be set via property below
       };
-      this.addMessage(message, { forceScroll: true, smooth: true, autoScroll: true });
-      targetIndex = this.messages.length - 1;
-    }
-
-    // For toolCalls without text that should show placeholder, remove the DOM element
-    // (the placeholder will be shown by updateToolActivityIndicator)
-    // BUT: Never remove toolCalls that have text!
-    if (shouldShowPlaceholder && !hasRenderableText) {
-      const existingRefs = this.messageElements[targetIndex];
-      if (existingRefs?.wrapper && existingRefs.wrapper.parentElement) {
-        existingRefs.wrapper.parentElement.removeChild(existingRefs.wrapper);
-      }
-      this.messageElements[targetIndex] = null;
-    }
-
-    // Update pending tool call state
-    if (shouldShowPlaceholder) {
-      this.pendingToolCall = { anchorIndex: targetIndex };
-    } else if (hasRenderableText) {
-      // This message has text - check if we need to remove previous toolCall without text
-      if (index > 0) {
-        const prevMessage = this.messages[index - 1];
-        if (prevMessage?.isToolPlaceholder) {
-          // Previous message was a tool call placeholder → hide it
-          this.pendingToolCall = null;
-          
-          // Also remove the DOM element of the previous toolCall without text
-          const prevRefs = this.messageElements[index - 1];
-          if (prevRefs?.wrapper && prevRefs.wrapper.parentElement) {
-            prevRefs.wrapper.parentElement.removeChild(prevRefs.wrapper);
-          }
-          this.messageElements[index - 1] = null;
-        }
+      (message as any).isToolCall = isToolCall;
+      
+      this.messages.push(message);
+      
+      // Render if has text or is streaming
+      const shouldRender = hasText || (role === "agent" && isStreaming);
+      if (shouldRender) {
+        const elements = this.appendMessageElement(message, {
+          forceScroll: true,
+          smooth: true,
+          autoScroll: true
+        });
+        this.messageElements.push(elements);
+      } else {
+        this.messageElements.push(null);
       }
     }
-
+    
+    // Update tool call placeholder state
+    this.updatePendingToolCallState();
+    
     this.scrollToBottom({ smooth: true });
     this.ensureWelcomeMessage();
     this.ensureDisclaimer();
-    this.updateToolActivityIndicator();
   }
 
   /**
