@@ -218,6 +218,7 @@ export class ChatWidget {
     }
     this.isOpen = true;
     this.hasEverOpened = true;
+    this.container.classList.add("acw-container-open");
     this.chatWindow.classList.add("acw-open");
     this.launcherButton.setAttribute("aria-expanded", "true");
     this.chatWindow.setAttribute("aria-hidden", "false");
@@ -236,6 +237,7 @@ export class ChatWidget {
       return;
     }
     this.isOpen = false;
+    this.container.classList.remove("acw-container-open");
     this.chatWindow.classList.remove("acw-open");
     this.launcherButton.setAttribute("aria-expanded", "false");
     this.chatWindow.setAttribute("aria-hidden", "true");

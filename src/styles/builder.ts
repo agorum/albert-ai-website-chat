@@ -141,6 +141,10 @@ export function buildStyles(): string {
       cursor: pointer;
       color: var(--acw-text-color);
       transition: background 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
     }
     .acw-icon-button:hover {
       background: rgba(148, 163, 184, 0.15);
@@ -588,14 +592,31 @@ export function buildStyles(): string {
       .acw-container {
         inset: auto var(--acw-spacing-md) var(--acw-spacing-md) var(--acw-spacing-md);
         width: calc(100vw - var(--acw-spacing-md) * 2);
-        align-items: stretch;
-      }
-      .acw-chat,
-      .acw-launcher {
-        width: 100%;
+        align-items: flex-end;
       }
       .acw-chat {
+        width: 100%;
         border-radius: var(--acw-radius-md);
+      }
+      .acw-container.acw-container-open {
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        gap: 0;
+        align-items: stretch;
+        justify-content: flex-start;
+      }
+      .acw-container.acw-container-open .acw-chat {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+      }
+      .acw-container.acw-container-open .acw-launcher,
+      .acw-container.acw-container-open .acw-teaser {
+        display: none;
       }
     }
   `;
