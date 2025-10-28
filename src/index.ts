@@ -559,6 +559,8 @@ export class ChatWidget {
       this.ensureWelcomeMessage();
     }
 
+    this.ensureDisclaimer();
+
     if (this.shouldAutoScroll) {
       this.scrollToBottom({ smooth: true });
     }

@@ -492,9 +492,6 @@ export function buildStyles(): string {
     }
     
     /* Typing Indicator */
-    .acw-message-streaming .acw-timestamp {
-      opacity: 0;
-    }
     .acw-typing {
       align-self: flex-start;
     }
