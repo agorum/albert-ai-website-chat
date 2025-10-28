@@ -501,9 +501,7 @@ export function buildStyles(): string {
       color: var(--acw-agent-text-color);
     }
     .acw-typing .acw-typing-content {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+      display: block;
       min-height: 32px;
       white-space: pre-wrap;
       word-break: break-word;
@@ -523,6 +521,7 @@ export function buildStyles(): string {
     .acw-typing-placeholder {
       display: inline-block;
       min-width: 4px;
+      height: 1em;
     }
     
     /* Consent UI */

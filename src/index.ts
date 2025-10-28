@@ -525,7 +525,13 @@ export class ChatWidget {
     historyEntries.forEach((entry, index) => {
       const absoluteIndex = startHistoryIndex + index;
       const textOffset = index === 0 ? firstTextOffset : 0;
-      this.applyHistoryEntry(absoluteIndex, entry, textOffset);
+      const isLastEntry = index === historyEntries.length - 1;
+      this.applyHistoryEntry(
+        absoluteIndex,
+        entry,
+        textOffset,
+        running && isLastEntry
+      );
     });
 
     if (response.offsets) {
@@ -540,6 +546,7 @@ export class ChatWidget {
       this.deactivateToolPlaceholder();
       this.clearTypingIndicator();
       this.cleanupAgentPlaceholder();
+      this.clearStreamingFlags();
     } else if (this.toolActivityIndicator) {
       this.setTypingIndicatorToPlaceholder();
     } else {
@@ -558,7 +565,8 @@ export class ChatWidget {
   private applyHistoryEntry(
     index: number,
     entry: ChatServiceHistoryEntry,
-    textOffset: number
+    textOffset: number,
+    isStreamingCandidate: boolean
   ): void {
     const role = this.normalizeServiceRole(entry.role);
     const rawText = entry.text ?? "";
@@ -588,11 +596,12 @@ export class ChatWidget {
     if (decodedText.length > 0) {
       record.content = this.mergeRecordContent(record.content, decodedText, textOffset);
       record.timestamp = record.timestamp ?? new Date();
-      this.ensureHistoryMessage(record);
+      const shouldStream = isStreamingCandidate && role === "agent" && !isToolCall;
+      this.ensureHistoryMessage(record, shouldStream);
       if (trimmedText.length > 0) {
         this.deactivateToolPlaceholder();
       }
-      if (!this.toolActivityIndicator) {
+      if (shouldStream && !this.toolActivityIndicator) {
         this.setTypingIndicatorToMessage(record.messageIndex ?? null);
       }
       return;
@@ -616,7 +625,7 @@ export class ChatWidget {
     return existing.slice(0, offset) + chunk;
   }
 
-  private ensureHistoryMessage(record: HistoryRecord): void {
+  private ensureHistoryMessage(record: HistoryRecord, isStreaming: boolean): void {
     const timestamp = record.timestamp ?? new Date();
     let messageIndex = record.messageIndex;
 
@@ -650,9 +659,19 @@ export class ChatWidget {
       timestamp,
       status: record.role === "user" ? "sent" : undefined,
       localOnly: false,
-      isStreamingPlaceholder: false,
+      isStreamingPlaceholder: isStreaming,
     });
     this.updateMessageElement(messageIndex);
+  }
+
+  private clearStreamingFlags(): void {
+    const messages = this.messageManager.getMessages();
+    messages.forEach((message, index) => {
+      if (message?.isStreamingPlaceholder) {
+        this.messageManager.updateMessage(index, { isStreamingPlaceholder: false });
+        this.updateMessageElement(index);
+      }
+    });
   }
 
   private updateMessageElement(index: number): void {
@@ -678,7 +697,33 @@ export class ChatWidget {
     } else {
       elements.bubble.innerHTML = renderPlainText(message.content);
     }
-    elements.wrapper.classList.toggle("acw-message-streaming", Boolean(message.isStreamingPlaceholder));
+    
+    const isStreaming = Boolean(message.isStreamingPlaceholder);
+    elements.wrapper.classList.toggle("acw-message-streaming", isStreaming);
+    if (!isStreaming) {
+      elements.wrapper.classList.remove("acw-typing");
+      elements.bubble.classList.remove("acw-bubble-typing", "acw-typing-content");
+      const placeholder = elements.bubble.querySelector(".acw-typing-placeholder");
+      if (placeholder) {
+        placeholder.remove();
+      }
+    } else {
+      if (!elements.wrapper.classList.contains("acw-typing")) {
+        elements.wrapper.classList.add("acw-typing");
+      }
+      if (!elements.bubble.classList.contains("acw-bubble-typing")) {
+        elements.bubble.classList.add("acw-bubble-typing");
+      }
+      if (!elements.bubble.classList.contains("acw-typing-content")) {
+        elements.bubble.classList.add("acw-typing-content");
+      }
+      if (!elements.bubble.querySelector(".acw-typing-placeholder")) {
+        const span = document.createElement("span");
+        span.className = "acw-typing-placeholder";
+        span.innerHTML = "&nbsp;";
+        elements.bubble.insertBefore(span, elements.bubble.firstChild);
+      }
+    }
     elements.timestamp.textContent = formatTime(message.timestamp, this.options.locale);
 
     if (this.typingTarget && this.typingCursor && this.typingTarget.wrapper === elements.wrapper) {
@@ -732,7 +777,9 @@ export class ChatWidget {
     this.appendMessageToDOM(message, index);
     this.pendingAgentPlaceholderIndex = index;
     const elements = this.messageManager.getMessageElements(index);
-    if (elements?.bubble) {
+    if (elements?.bubble && elements.wrapper) {
+      elements.wrapper.classList.add("acw-message-streaming", "acw-typing");
+      elements.bubble.classList.add("acw-bubble-typing", "acw-typing-content");
       elements.bubble.innerHTML = '<span class="acw-typing-placeholder">&nbsp;</span>';
     }
     this.setTypingIndicatorToMessage(index);
