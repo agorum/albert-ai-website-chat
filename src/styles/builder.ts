@@ -218,6 +218,10 @@ export function buildStyles(): string {
       color: var(--acw-agent-text-color);
       border-bottom-left-radius: 4px;
     }
+    .acw-bubble.acw-agent-fixed {
+      padding: var(--acw-spacing-sm) var(--acw-spacing-md);
+      white-space: normal;
+    }
     .acw-tool-indicator .acw-bubble,
     .acw-tool-placeholder .acw-bubble {
       font-style: italic;
@@ -502,7 +506,6 @@ export function buildStyles(): string {
     }
     .acw-typing .acw-typing-content {
       display: block;
-      min-height: 32px;
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -523,7 +526,6 @@ export function buildStyles(): string {
       min-width: 4px;
       height: 1em;
     }
-    
     /* Consent UI */
     .acw-consent {
       align-self: stretch;

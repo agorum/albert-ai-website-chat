@@ -549,6 +549,8 @@ export class ChatWidget {
       this.clearStreamingFlags();
     } else if (this.toolActivityIndicator) {
       this.setTypingIndicatorToPlaceholder();
+    } else if (this.pendingAgentPlaceholderIndex !== null) {
+      this.setTypingIndicatorToMessage(this.pendingAgentPlaceholderIndex);
     } else {
       this.setTypingIndicatorToLatestMessage();
     }
@@ -693,6 +695,7 @@ export class ChatWidget {
     }
 
     if (message.role === "agent") {
+      elements.bubble.classList.add("acw-agent-fixed");
       elements.bubble.innerHTML = renderMarkdown(message.content);
     } else {
       elements.bubble.innerHTML = renderPlainText(message.content);
@@ -700,29 +703,15 @@ export class ChatWidget {
     
     const isStreaming = Boolean(message.isStreamingPlaceholder);
     elements.wrapper.classList.toggle("acw-message-streaming", isStreaming);
-    if (!isStreaming) {
+    const hasContent = (message.content ?? "").trim().length > 0;
+    if (!isStreaming || hasContent) {
       elements.wrapper.classList.remove("acw-typing");
       elements.bubble.classList.remove("acw-bubble-typing", "acw-typing-content");
-      const placeholder = elements.bubble.querySelector(".acw-typing-placeholder");
-      if (placeholder) {
-        placeholder.remove();
-      }
+      this.removeTypingPlaceholder(elements.bubble);
     } else {
-      if (!elements.wrapper.classList.contains("acw-typing")) {
-        elements.wrapper.classList.add("acw-typing");
-      }
-      if (!elements.bubble.classList.contains("acw-bubble-typing")) {
-        elements.bubble.classList.add("acw-bubble-typing");
-      }
-      if (!elements.bubble.classList.contains("acw-typing-content")) {
-        elements.bubble.classList.add("acw-typing-content");
-      }
-      if (!elements.bubble.querySelector(".acw-typing-placeholder")) {
-        const span = document.createElement("span");
-        span.className = "acw-typing-placeholder";
-        span.innerHTML = "&nbsp;";
-        elements.bubble.insertBefore(span, elements.bubble.firstChild);
-      }
+      elements.wrapper.classList.add("acw-typing");
+      elements.bubble.classList.add("acw-bubble-typing", "acw-typing-content");
+      this.ensureTypingPlaceholder(elements.bubble);
     }
     elements.timestamp.textContent = formatTime(message.timestamp, this.options.locale);
 
@@ -768,7 +757,7 @@ export class ChatWidget {
     }
     const message: ChatMessage = {
       role: "agent",
-      content: "\u00a0",
+      content: "",
       timestamp: new Date(),
       localOnly: true,
       isStreamingPlaceholder: true,
@@ -777,10 +766,8 @@ export class ChatWidget {
     this.appendMessageToDOM(message, index);
     this.pendingAgentPlaceholderIndex = index;
     const elements = this.messageManager.getMessageElements(index);
-    if (elements?.bubble && elements.wrapper) {
-      elements.wrapper.classList.add("acw-message-streaming", "acw-typing");
-      elements.bubble.classList.add("acw-bubble-typing", "acw-typing-content");
-      elements.bubble.innerHTML = '<span class="acw-typing-placeholder">&nbsp;</span>';
+    if (elements?.bubble) {
+      this.ensureTypingPlaceholder(elements.bubble);
     }
     this.setTypingIndicatorToMessage(index);
   }
@@ -816,6 +803,7 @@ export class ChatWidget {
     if (this.typingTarget && this.typingTarget.wrapper === target.wrapper) {
       target.wrapper.classList.add("acw-typing");
       target.bubble.classList.add("acw-bubble-typing", "acw-typing-content");
+      this.ensureTypingPlaceholder(target.bubble);
       if (this.typingCursor.parentElement !== target.bubble) {
         target.bubble.appendChild(this.typingCursor);
       }
@@ -826,6 +814,7 @@ export class ChatWidget {
     this.clearTypingIndicator();
     target.wrapper.classList.add("acw-typing");
     target.bubble.classList.add("acw-bubble-typing", "acw-typing-content");
+    this.ensureTypingPlaceholder(target.bubble);
     target.bubble.appendChild(this.typingCursor);
     attachTypingCursor(target.bubble, this.typingCursor);
     this.typingTarget = target;
@@ -842,6 +831,30 @@ export class ChatWidget {
       bubble.removeChild(this.typingCursor);
     }
     this.typingTarget = null;
+  }
+
+  private ensureTypingPlaceholder(bubble: HTMLDivElement): void {
+    const text = bubble.textContent ?? "";
+    const existing = bubble.querySelector<HTMLSpanElement>(".acw-typing-placeholder");
+    if (text.trim().length > 0) {
+      if (existing) {
+        existing.remove();
+      }
+      return;
+    }
+    if (!existing) {
+      const span = document.createElement("span");
+      span.className = "acw-typing-placeholder";
+      span.innerHTML = "&nbsp;";
+      bubble.insertBefore(span, bubble.firstChild);
+    }
+  }
+
+  private removeTypingPlaceholder(bubble: HTMLDivElement): void {
+    const existing = bubble.querySelector<HTMLSpanElement>(".acw-typing-placeholder");
+    if (existing) {
+      existing.remove();
+    }
   }
 
   private activateToolPlaceholder(): void {

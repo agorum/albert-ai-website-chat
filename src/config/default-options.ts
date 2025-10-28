@@ -68,7 +68,7 @@ export const defaultOptions: ChatWidgetOptions = {
   ],
   dimensions: {
     widthPercent: 33,
-    minWidthPx: 320,
+    minWidthPx: 500,
     heightPercent: 70,
     minHeightPx: 420,
   },
