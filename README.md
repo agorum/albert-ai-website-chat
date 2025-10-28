@@ -1,6 +1,8 @@
 # ALBERT \| AI Chat Widget
 
-A configurable chat widget that can be embedded into any website with a single script tag. The project is written in TypeScript, renders inside a Shadow DOM, and currently ships with mock responses so it can run without a backend. A REST integration can be added later.
+A configurable chat widget that can be embedded into any website with a single script tag. This chat component is designed to work hand in hand with ALBERT \| AI so you can bring an AI-driven service to your own site—ranging from classic conversations to sophisticated agentic workflows that leverage tool calls and MCP integrations for sales, customer support, order tracking, and more. Further information about the ALBERT \| AI ecosystem is available at https://www.agorum.com/albert-ki-universum.
+
+The project is written in TypeScript, renders inside a Shadow DOM, and currently ships with mock responses so it can run without a backend. A REST integration can be added later.
 
 ## Features
 
@@ -198,6 +200,62 @@ interface ChatWidgetOptions {
 ```
 
 > **Note:** The `init()` helper performs a deep merge with the defaults, so you can override only the fields you need.
+
+## Connecting to ALBERT \| AI on agorum core
+
+When you are ready to connect the widget to your ALBERT \| AI backend (for example on agorum core or the ALBERT \| AI Operating System), follow these steps:
+
+1. Create an ALBERT \| AI preset that defines the allowed tools, context windows, and any other settings you need for the website chat experience.
+2. Assign this preset to the agorum core group that should be allowed to use it.
+3. Provision a dedicated agorum core service user and add them to the group that grants access to the preset and associated tools.
+4. Generate a JWT for the service user. This token will be injected into your proxy configuration to authenticate requests from the website.
+5. Deploy an nginx reverse proxy on a server that can reach the ALBERT \| AI backend (this can be the same server that hosts your website). The proxy terminates TLS, forwards chat traffic to agorum core, and adds the JWT as a Bearer token.
+
+Below is an example nginx configuration that secures the chat endpoint and forwards requests to the ALBERT \| AI chat service:
+
+```nginx
+server {
+	listen 443 ssl http2;
+
+	# ALBERT | AI chat proxy
+	include /etc/nginx/snippets/chat-token.conf;
+	location /albert/chat/ {
+		# Restrict access from your website
+		if ($http_origin != "https://www.yourwebsite.com") { return 403; }
+		if ($host != "www.yourwebsite.com") { return 403; }
+
+		proxy_pass https://your-agorum-core-server/api/rest/custom/agorum.ai.service.chat/;
+
+		proxy_set_header Host your-agorum-core-server;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+
+		# Add Bearer-Token of agorum core user
+		proxy_set_header Authorization $chat_bearer_token;
+
+		# Optional: strict CORS-Window for browser calls
+		add_header Access-Control-Allow-Origin "https://www.yourwebsite.com" always;
+		add_header Access-Control-Allow-Headers "Authorization,Content-Type" always;
+		add_header Access-Control-Allow-Methods "GET,POST,PUT,DELETE,OPTIONS" always;
+
+		# Answer Preflight requests
+		if ($request_method = OPTIONS) {
+			add_header Content-Length 0;
+			add_header Content-Type text/plain;
+			return 204;
+		}
+	}
+}
+```
+
+- `include /etc/nginx/snippets/chat-token.conf;` loads a snippet that defines the `$chat_bearer_token` variable with the JWT you generated in step 4.
+- The `if` directives reject traffic from other origins or hosts, making sure only your site can open the chat endpoint.
+- The `proxy_pass` forwards requests to the ALBERT \| AI chat REST service and keeps the client IP information intact through the `X-Real-IP` and `X-Forwarded-*` headers.
+- The `Authorization` header injects the Bearer token of the agorum core service user so that ALBERT \| AI accepts the request.
+- The optional CORS headers restrict browser access to your trusted origin and only allow the required headers and methods. The `OPTIONS` branch returns a 204 for preflight requests, so browsers can complete their CORS checks.
+
+Once the proxy is live, point the widget’s `serviceConfig.endpoint` to the public `/albert/chat/` location on your nginx host. The widget will forward all chat requests through the secure proxy to ALBERT \| AI.
 
 ## Roadmap Ideas
 
