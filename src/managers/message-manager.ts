@@ -156,6 +156,80 @@ export class MessageManager {
    */
   hydrateFromHistory(history: ChatServiceHistoryEntry[]): void {
     this.clearMessages();
+    this.processHistoryEntries(history);
+  }
+
+  /**
+   * Updates messages incrementally from service history
+   * This method compares the new history with existing messages and only updates what changed
+   */
+  updateFromHistory(history: ChatServiceHistoryEntry[]): void {
+    // If we have no messages yet, do a full hydration
+    if (this.messages.length === 0) {
+      this.processHistoryEntries(history);
+      return;
+    }
+
+    // Find where our current messages end in the history
+    let historyIndex = 0;
+    let messageIndex = 0;
+
+    // Skip past messages that already exist
+    while (historyIndex < history.length && messageIndex < this.messages.length) {
+      const historyEntry = history[historyIndex];
+      const existingMessage = this.messages[messageIndex];
+      
+      // Skip tool placeholders when comparing
+      if (existingMessage.isToolPlaceholder) {
+        messageIndex++;
+        continue;
+      }
+
+      const historyRole = this.mapServiceRole(historyEntry.role);
+      const historyContentRaw = decodeHtmlEntities(historyEntry.text ?? "");
+      const historyContent = historyContentRaw.trim();
+      const existingContent = (existingMessage.content ?? "").trim();
+
+      // Check if this is the same message
+      if (historyRole === existingMessage.role) {
+        // For streaming: new content should start with or extend existing content
+        if (historyContent.startsWith(existingContent) || existingContent === "" || 
+            (historyRole === "agent" && existingContent.startsWith(historyContent))) {
+          // Update existing message with new content (for streaming)
+          // Use the raw (non-trimmed) content to preserve formatting
+          if (historyContentRaw !== existingMessage.content && historyContent.length > 0) {
+            existingMessage.content = historyContentRaw;
+            this.historyContents[messageIndex] = historyContentRaw;
+          }
+          historyIndex++;
+          messageIndex++;
+        } else {
+          // Content mismatch - break and add remaining as new
+          break;
+        }
+      } else {
+        // Role mismatch - break and add remaining as new  
+        break;
+      }
+    }
+
+    // Add any new messages from history
+    const newEntries = history.slice(historyIndex);
+    if (newEntries.length > 0) {
+      this.processHistoryEntries(newEntries, false);
+    }
+    
+    // Update pending tool call state
+    this.updatePendingToolCallState();
+  }
+
+  /**
+   * Internal method to process history entries
+   */
+  private processHistoryEntries(history: ChatServiceHistoryEntry[], clearFirst = false): void {
+    if (clearFirst) {
+      this.clearMessages();
+    }
     
     let pendingToolCall: { anchorIndex: number | null } | null = null;
     

@@ -492,8 +492,17 @@ export class ChatWidget {
     const running = Boolean(response.running);
     
     if (history.length) {
-      this.messageManager.hydrateFromHistory(history);
-      this.rebuildMessageDOM();
+      const previousMessageCount = this.messageManager.getMessageCount();
+      this.messageManager.updateFromHistory(history);
+      const newMessageCount = this.messageManager.getMessageCount();
+      
+      // Only rebuild if messages were added/removed, otherwise update existing
+      if (newMessageCount !== previousMessageCount) {
+        this.rebuildMessageDOM();
+      } else {
+        // Update existing message content for streaming
+        this.updateExistingMessages();
+      }
     }
     
     if (response.offsets) {
@@ -560,6 +569,30 @@ export class ChatWidget {
     const messages = this.messageManager.getMessages();
     messages.forEach((message, index) => {
       if (!message.isToolPlaceholder && message.content) {
+        this.appendMessageToDOM(message, index);
+      }
+    });
+  }
+
+  private updateExistingMessages(): void {
+    const messages = this.messageManager.getMessages();
+    messages.forEach((message, index) => {
+      if (message.isToolPlaceholder || !message.content) {
+        return;
+      }
+      
+      const elements = this.messageManager.getMessageElements(index);
+      if (elements && elements.bubble) {
+        // Update the bubble element with new text
+        const renderedContent = renderMarkdown(message.content);
+        elements.bubble.innerHTML = renderedContent;
+        
+        // Ensure scroll position is maintained
+        if (this.shouldAutoScroll) {
+          this.scrollToBottom({ smooth: true });
+        }
+      } else if (!elements) {
+        // Message doesn't have DOM elements yet, add it
         this.appendMessageToDOM(message, index);
       }
     });
