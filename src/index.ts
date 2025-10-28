@@ -132,6 +132,7 @@ export class ChatWidget {
   private typingCursor?: HTMLSpanElement;
   private typingTarget: { wrapper: HTMLDivElement; bubble: HTMLDivElement } | null = null;
   private pendingAgentPlaceholderIndex: number | null = null;
+  private conversationVersion = 0;
 
   /**
    * Creates a new ChatWidget instance
@@ -255,6 +256,7 @@ export class ChatWidget {
    * Resets the conversation
    */
   resetConversation(): void {
+    this.conversationVersion += 1;
     this.service.stopPolling();
     this.shouldAutoScroll = true;
     this.isAwaitingAgent = false;
@@ -452,10 +454,14 @@ export class ChatWidget {
   }
 
   private async sendMessageToService(content: string, messageIndex: number): Promise<void> {
+    const version = this.conversationVersion;
     try {
       // Ensure session exists
       if (!this.service.getChatId()) {
         const initialized = await this.service.initSession();
+        if (version !== this.conversationVersion) {
+          return;
+        }
         if (!initialized) {
           throw new Error("Failed to initialize chat session");
         }
@@ -463,27 +469,45 @@ export class ChatWidget {
       
       // Send message
       await this.service.sendMessage(content);
+      if (version !== this.conversationVersion) {
+        return;
+      }
       this.messageManager.updateMessage(messageIndex, { status: "sent" });
       
       // Start polling for response
+      if (version !== this.conversationVersion) {
+        return;
+      }
       this.isAwaitingAgent = true;
       this.updateSendAvailability();
+      if (version !== this.conversationVersion) {
+        return;
+      }
       this.ensureAgentStreamingPlaceholder();
+      if (version !== this.conversationVersion) {
+        return;
+      }
       this.pollForUpdates();
       
     } catch (error) {
       console.error("AlbertChat: Failed to send message", error);
-      this.messageManager.updateMessage(messageIndex, { status: "failed" });
-      this.showError("Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.");
+      if (version === this.conversationVersion) {
+        this.messageManager.updateMessage(messageIndex, { status: "failed" });
+        this.showError("Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.");
+      }
     }
   }
 
   private async pollForUpdates(): Promise<void> {
+    const version = this.conversationVersion;
     if (!this.service.isConfigured()) {
       return;
     }
     
     const response = await this.service.fetchInfo();
+    if (version !== this.conversationVersion) {
+      return;
+    }
     const requestedOffsets = this.service.getLastRequestedOffsets();
     if (!response) {
       if (this.service.getPollFailureCount() >= MAX_POLL_FAILURES_BEFORE_RESET) {
@@ -500,6 +524,9 @@ export class ChatWidget {
     // Continue polling if still awaiting response
     if (this.isAwaitingAgent) {
       this.service.scheduleNextPoll(undefined, () => {
+        if (version !== this.conversationVersion) {
+          return;
+        }
         void this.pollForUpdates();
       });
     }
@@ -926,6 +953,7 @@ export class ChatWidget {
     
     this.isAwaitingAgent = true;
     this.updateSendAvailability();
+    const version = this.conversationVersion;
     
     const [minDelay, maxDelay] = this.options.mockResponseDelayMs;
     const delay = clamp(
@@ -935,6 +963,9 @@ export class ChatWidget {
     );
     
     window.setTimeout(() => {
+      if (version !== this.conversationVersion) {
+        return;
+      }
       const response = this.options.mockResponses[this.mockResponseIndex];
       this.mockResponseIndex = (this.mockResponseIndex + 1) % this.options.mockResponses.length;
       
@@ -1010,11 +1041,18 @@ export class ChatWidget {
   }
 
   private async loadInitialHistory(): Promise<void> {
+    const version = this.conversationVersion;
     if (!this.service.getChatId()) {
       await this.service.initSession();
+      if (version !== this.conversationVersion) {
+        return;
+      }
     }
     
     const response = await this.service.fetchInfo(true);
+    if (version !== this.conversationVersion) {
+      return;
+    }
     if (response) {
       this.hasLoadedInitialHistory = true;
       const requestedOffsets = this.service.getLastRequestedOffsets();
