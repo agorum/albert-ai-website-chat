@@ -1,5 +1,5 @@
 /**
- * Albert AI Chat Widget - Main Entry Point
+ * ALBERT | AI Chat Widget - Main Entry Point
  * 
  * A modern, customizable chat widget for web applications.
  * This widget can be embedded on arbitrary web pages by loading the bundled script
@@ -153,7 +153,7 @@ export class ChatWidget {
    */
   mount(): void {
     if (typeof window === "undefined" || typeof document === "undefined") {
-      throw new Error("AlbertChat: mount() benötigt eine Browser-Umgebung.");
+      throw new Error("ALBERT | AI Chat: mount() requires a browser environment.");
     }
 
     if (this.host) {
@@ -296,7 +296,7 @@ export class ChatWidget {
         return target;
       }
       console.warn(
-        `AlbertChat: Ziel-Selektor '${this.options.target}' wurde nicht gefunden. Widget wird an <body> angehängt.`
+        `ALBERT | AI Chat: target selector '${this.options.target}' was not found. Falling back to <body>.`
       );
     }
     return document.body;
@@ -492,7 +492,7 @@ export class ChatWidget {
       this.pollForUpdates();
       
     } catch (error) {
-      console.error("AlbertChat: Failed to send message", error);
+      console.error("ALBERT | AI Chat: Failed to send message", error);
       if (version === this.conversationVersion) {
         this.messageManager.updateMessage(messageIndex, { status: "failed" });
         this.showError("Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.");

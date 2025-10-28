@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Albert Chat Widget – Schnelle Demo</title>
+    <title>ALBERT | AI Chat Widget – Live Demo</title>
     <style>
       :root {
         color-scheme: light;
@@ -39,21 +39,21 @@
   </head>
   <body>
     <main>
-      <h1>Willkommen zum Albert Chat Widget</h1>
+      <h1>Welcome to the ALBERT | AI Chat Widget</h1>
       <p>
-        Diese Seite lädt das gebaute Script aus <code>dist/index.global.js</code> und initialisiert den Chat
-        mit ein paar angepassten Texten und Farben. Öffnen Sie den Chat über den Button unten rechts oder
-        warten Sie auf den Hinweis nach wenigen Sekunden.
+        This page loads the bundled script from <code>dist/index.global.js</code> and initializes the
+        widget with customized copy and colors. Open the chat via the button in the bottom right corner
+        or wait a few seconds for the teaser bubble to appear.
       </p>
     </main>
 
     <script src="../dist/index.global.js" defer></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
-        const serviceEndpoint =
-          window.location.hostname === 'localhost'
-            ? 'http://localhost:8010'
-            : 'https://www.agorum.com/albert/chat';
+        const serviceEndpoint = 'http://10.0.1.86:8010';
+          // window.location.hostname === 'localhost'
+          //   ? 'http://10.0.1.86:8010'
+          //   : 'https://www.agorum.com/albert/chat';
 
         AlbertChat.init({
           target: document.body,
@@ -82,38 +82,38 @@
             shadowColor: 'rgba(14, 165, 233, 0.25)',
           },
           texts: {
-            launcherLabel: 'Frag Albert',
-            launcherAriaLabel: 'Albert Chat oeffnen',
-            teaserText: 'Hallo! Brauchen Sie Hilfe?',
-            headerTitle: 'Albert AI Assistent',
-            headerSubtitle: 'Wir helfen gerne weiter',
-            sendButtonLabel: 'Senden',
-            closeLabel: 'Fenster schliessen',
-            reloadLabel: 'Neu starten',
-            initialMessage: 'Hallo! Schoen, dass Sie da sind. Welche Frage kann ich beantworten?',
+            launcherLabel: 'Ask ALBERT | AI',
+            launcherAriaLabel: 'Open the ALBERT | AI chat',
+            teaserText: 'Need a hand? ALBERT | AI is ready.',
+            headerTitle: 'ALBERT | AI Assistant',
+            headerSubtitle: 'We are happy to support you',
+            sendButtonLabel: 'Send',
+            closeLabel: 'Close window',
+            reloadLabel: 'Restart',
+            initialMessage: 'Hello! Great to see you. What can ALBERT | AI explain today?',
             consentPrompt:
-              'Bevor wir beginnen, lesen Sie bitte unsere Datenschutzhinweise und bestaetigen Ihre Zustimmung.',
-            consentAcceptLabel: 'Zustimmen',
-            consentDeclineLabel: 'Ablehnen',
+              'Before we start, please read our privacy notice and confirm your consent.',
+            consentAcceptLabel: 'Accept',
+            consentDeclineLabel: 'Decline',
             consentDeclinedMessage:
-              'Ohne Zustimmung zu unseren Datenschutzhinweisen ist der Chat leider nicht verfuegbar.',
-            sendWhileStreamingTooltip: 'Bitte warten, bis die aktuelle Antwort vollstaendig ist.',
+              'Without consent the chat cannot continue. Restart if you change your mind.',
+            sendWhileStreamingTooltip: 'Please wait until the current response has finished.',
             sendWhileConsentPendingTooltip:
-              'Sie koennen erst senden, nachdem Sie der Datenschutzerklaerung zugestimmt haben.',
+              'You can only send messages after accepting the privacy notice.',
             sendWhileTerminatedTooltip:
-              'Der Chat ist deaktiviert. Starten Sie ihn neu, um eine neue Sitzung zu beginnen.',
-            toolCallPlaceholder: 'Ich recherchiere das kurz fuer Sie ...',
+              'The chat is inactive. Restart to begin a new conversation.',
+            toolCallPlaceholder: 'Give me a moment while I look that up…',
           },
           icons: {
             headerIcon: '🤖',
-            closeIcon: '✖',
+            closeIcon: '✕',
             reloadIcon: '⟳',
             launcherIcon: '💬',
             sendIcon: '➤',
           },
           footerLinks: [
-            { label: 'Datenschutz', href: 'https://example.com/datenschutz', target: '_blank' },
-            { label: 'Impressum', href: 'https://example.com/impressum', target: '_blank' },
+            { label: 'Privacy', href: 'https://example.com/privacy', target: '_blank' },
+            { label: 'Imprint', href: 'https://example.com/imprint', target: '_blank' },
           ],
           dimensions: {
             widthPercent: 33,
@@ -123,17 +123,17 @@
           },
           teaserDelayMs: 3500,
           mockResponses: [
-            'Danke für Ihre Frage – ich prüfe das sofort und fasse Ihnen gleich die wichtigsten Punkte zusammen. Geben Sie mir bitte einen kleinen Moment, damit ich nichts vergesse.',
-            'Hier ist eine ausführliche Antwort:\n\n1. Ausgangslage beschreiben\n2. Relevante Schritte auflisten\n3. Mögliche Alternativen nennen\n4. Ein kurzes Fazit ziehen\n\nWenn Sie zu einem der genannten Punkte mehr Details brauchen, lassen Sie es mich wissen.',
-            'Zusätzlich habe ich noch einige weiterführende Hinweise zusammengestellt:\n\n- Prüfen Sie die Konfiguration in Ihrem Admin-Panel.\n- Vergleichen Sie die Logfiles der letzten 24 Stunden.\n- Dokumentieren Sie die nächsten Schritte, damit Ihr Team Bescheid weiß.\n\nGibt es sonst noch etwas, das ich für Sie erledigen kann?',
+            'Thanks for your question! I am reviewing everything so I do not miss any detail.',
+            'Here is a structured answer:\n\n1. Describe the current status\n2. List the relevant steps\n3. Mention alternatives worth considering\n4. Close with a short recommendation\n\nNeed more depth on any point? Just let me know.',
+            'I also gathered a few extra tips:\n\n- Double-check your admin configuration.\n- Compare the latest log files for anomalies.\n- Document the next actions so your team stays aligned.\n\nAnything else ALBERT | AI can do for you?',
           ],
           mockResponseDelayMs: [900, 1800],
           zIndex: 12000,
-          locale: 'de-DE',
+          locale: 'en-US',
           requirePrivacyConsent: true,
           welcomeMessage: {
             enabled: true,
-            text: 'Hallo! Ich bin Albert. Wie kann ich Sie heute unterstuetzen?',
+            text: 'Hello! ALBERT | AI is on standby. How can we assist you today?',
             className: 'acw-welcome-highlight',
             styles: {
               background: '#e0f2fe',
@@ -143,7 +143,7 @@
           },
           disclaimer: {
             enabled: true,
-            text: 'Hinweis: Albert kann sich irren. Bitte pruefen Sie wichtige Informationen nach.',
+            text: 'Note: ALBERT | AI may be incorrect. Please verify important information.',
             className: 'acw-disclaimer-note',
             styles: {
               fontSize: '0.78rem',
@@ -156,4 +156,3 @@
     </script>
   </body>
 </html>
-

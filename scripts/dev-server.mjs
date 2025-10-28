@@ -81,6 +81,6 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Albert Chat Dev Server läuft auf http://localhost:${PORT}`);
+  console.log(`ALBERT | AI dev server running at http://localhost:${PORT}`);
   console.log(`Serving Inhalte aus: ${PUBLIC_DIR}`);
 });

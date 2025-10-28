@@ -2,54 +2,55 @@
 call build.bat
 setlocal enabledelayedexpansion
 
-:: Setze Arbeitsverzeichnis auf das Skript-Verzeichnis
+:: Set working directory to the script location
 set "ROOT_DIR=%~dp0"
 cd /d "%ROOT_DIR%"
 
-:: Setze Standard-Werte
+:: Default values
 set "EXAMPLES_DIR=%~1"
 if "%EXAMPLES_DIR%"=="" set "EXAMPLES_DIR=examples"
 
 if not defined PROXY_PORT set "PROXY_PORT=8010"
 if not defined PROXY_TARGET set "PROXY_TARGET=https://www.agorum.com/albert/chat/"
 
-:: Prüfe ob dist-Ordner existiert
+:: Ensure the dist folder exists
 if not exist "dist\" (
-    echo Build-Ordner nicht gefunden. Starte build.bat ...
+    echo Build folder not found. Running build.bat...
     if exist "build.bat" (
         call build.bat
     ) else (
-        echo build.bat nicht gefunden. Fuehre npm run build aus...
+        echo build.bat not found. Running npm run build...
         call npm run build
     )
 )
 
 echo.
-echo Starte lokalen CORS-Proxy fuer %PROXY_TARGET% auf Port %PROXY_PORT% ...
+echo Starting local CORS proxy for %PROXY_TARGET% on port %PROXY_PORT%...
 echo.
 
-:: Starte CORS-Proxy im Hintergrund
+:: Start CORS proxy in the background
 start /b cmd /c "node scripts/cors-proxy.mjs "%PROXY_TARGET%" "%PROXY_PORT%""
 
-:: Warte kurz, damit der Proxy hochfahren kann
+:: Give the proxy a moment to boot
 timeout /t 2 /nobreak >nul
 
-:: Setze Umgebungsvariable für den Proxy-Endpoint
-set "ALBERT_CHAT_PROXY_ENDPOINT=http://localhost:%PROXY_PORT%"
+:: Expose proxy endpoint to the environment
+rem set "ALBERT_CHAT_PROXY_ENDPOINT=http://localhost:%PROXY_PORT%"
+set "ALBERT_CHAT_PROXY_ENDPOINT=http://10.0.1.86:%PROXY_PORT%"
 
 echo.
-echo CORS-Proxy laeuft auf http://localhost:%PROXY_PORT%
-echo Starte Dev-Server mit Examples aus %EXAMPLES_DIR% ...
+echo CORS proxy ready at http://localhost:%PROXY_PORT%
+echo Starting dev server with examples from %EXAMPLES_DIR%...
 echo.
-echo Druecke Strg+C zum Beenden (beendet beide Server)
+echo Press Ctrl+C to stop (this will exit both servers)
 echo.
 
-:: Starte Dev-Server (dieser blockiert und wartet auf Strg+C)
+:: Start dev server (runs until Ctrl+C)
 node scripts/dev-server.mjs "%EXAMPLES_DIR%"
 
-:: Wenn Dev-Server beendet wird, beende auch den Proxy
+:: When the dev server stops, stop the proxy as well
 echo.
-echo Beende Server...
+echo Shutting down servers...
 taskkill /f /fi "WINDOWTITLE eq *cors-proxy*" >nul 2>&1
 
 endlocal

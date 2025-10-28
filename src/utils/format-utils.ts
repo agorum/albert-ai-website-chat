@@ -21,7 +21,7 @@ export function formatTime(date: Date, locale: string): string {
     }).format(date);
   } catch (error) {
     // Fallback for environments without Intl support
-    console.warn("AlbertChat: Intl.DateTimeFormat failed, falling back to default", error);
+    console.warn("ALBERT | AI Chat: Intl.DateTimeFormat failed, falling back to default", error);
     return `${date.getHours().toString().padStart(2, "0")}:${date
       .getMinutes()
       .toString()

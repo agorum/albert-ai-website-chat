@@ -1,11 +1,11 @@
 @echo off
 setlocal
 
-:: Setze Arbeitsverzeichnis auf das Skript-Verzeichnis
+:: Set working directory to the script location
 set "ROOT_DIR=%~dp0"
 cd /d "%ROOT_DIR%"
 
-:: Prüfe ob node_modules existiert
+:: Ensure dependencies are installed
 if not exist "node_modules\" (
     echo Installing dependencies...
     call npm install
@@ -17,10 +17,10 @@ call npm run build
 
 if %ERRORLEVEL% equ 0 (
     echo.
-    echo Build erfolgreich abgeschlossen!
+    echo Build completed successfully.
 ) else (
     echo.
-    echo Build fehlgeschlagen mit Fehlercode %ERRORLEVEL%
+    echo Build failed with exit code %ERRORLEVEL%
     exit /b %ERRORLEVEL%
 )
 

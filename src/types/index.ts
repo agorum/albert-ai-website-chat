@@ -1,5 +1,5 @@
 /**
- * Type definitions for the Albert AI Chat Widget
+ * Type definitions for the ALBERT | AI Chat Widget
  * 
  * This module contains all TypeScript interfaces and types used throughout
  * the chat widget application. These types define the structure of messages,

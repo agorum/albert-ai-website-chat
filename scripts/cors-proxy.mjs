@@ -98,6 +98,6 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`CORS-Proxy läuft auf http://localhost:${PORT}`);
+  console.log(`CORS proxy running at http://localhost:${PORT}`);
   console.log(`→ Weiterleitung zu ${TARGET}`);
 });

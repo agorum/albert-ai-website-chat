@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Albert Chat Widget - Tool Call Test</title>
+    <title>ALBERT | AI Chat Widget - Tool Call Test</title>
     <style>
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -71,20 +71,20 @@
     <div class="container">
         <h1>🧪 Tool Call Test</h1>
         <p>
-            Diese Seite testet die neue Tool-Call-Implementierung des Albert Chat Widgets.
-            Der Chat simuliert Server-Responses mit Tool-Calls und überprüft das korrekte Verhalten.
+            This page exercises the tool-call implementation of the ALBERT | AI chat widget.
+            The widget simulates server responses that trigger tool calls so you can verify the UI behaviour.
         </p>
         
         <div class="test-controls">
-            <h3>Simulierte Server-Szenarien:</h3>
-            <button onclick="simulateToolCallWithText()">Tool-Call mit Text</button>
-            <button onclick="simulateToolCallWithoutText()">Tool-Call ohne Text</button>
-            <button onclick="simulateToolCallThenText()">Tool-Call → dann Text</button>
-            <button onclick="simulateMultipleToolCalls()">Mehrere Tool-Calls</button>
-            <button onclick="resetChat()">Chat zurücksetzen</button>
+            <h3>Simulated server scenarios:</h3>
+            <button onclick="simulateToolCallWithText()">Tool call that returns text</button>
+            <button onclick="simulateToolCallWithoutText()">Tool call without text</button>
+            <button onclick="simulateToolCallThenText()">Tool call followed by text</button>
+            <button onclick="simulateMultipleToolCalls()">Multiple tool calls</button>
+            <button onclick="resetChat()">Reset chat</button>
             
             <div id="status" class="status">
-                Status: Bereit für Tests
+                Status: Ready for tests
             </div>
         </div>
     </div>
@@ -106,7 +106,7 @@
                 requirePrivacyConsent: false,
                 welcomeMessage: {
                     enabled: true,
-                    text: "Hallo! Dies ist ein Test für Tool-Calls."
+                    text: "Hello! This is a tool-call test for ALBERT | AI."
                 },
                 serviceConfig: {
                     endpoint: 'mock://test',
@@ -126,9 +126,6 @@
                 }
                 return originalFetch(url, options);
             };
-            
-            chatWidget.mount();
-            updateStatus('Chat Widget initialisiert');
         });
         
         function getNextMockResponse() {
@@ -151,32 +148,32 @@
                     offsets: { history: 1, text: 0 },
                     history: [{
                         role: "user",
-                        text: "Suche nach Information über agorum",
+                        text: "What is the latest system status?",
                         isToolCall: false
                     }]
                 },
-                // Assistant announces tool call
+                // Tool call starts
                 {
                     running: true,
                     offsets: { history: 2, text: 0 },
                     history: [{
                         role: "assistant",
-                        text: "Ich suche jetzt nach Informationen über agorum.",
+                        text: "",
                         isToolCall: true
                     }]
                 },
-                // Tool call completed, assistant responds
+                // Tool call complete with text
                 {
                     running: false,
                     offsets: { history: 3, text: 0 },
                     history: [{
                         role: "assistant",
-                        text: "Ich habe folgende Informationen gefunden: agorum ist ein Softwareunternehmen...",
+                        text: "Tool call finished. Systems are healthy ✅",
                         isToolCall: false
                     }]
                 }
             ];
-            updateStatus('Simuliere: Tool-Call mit Text');
+            updateStatus('Simulating: tool call that responds with text');
         }
         
         function simulateToolCallWithoutText() {
@@ -188,11 +185,11 @@
                     offsets: { history: 1, text: 0 },
                     history: [{
                         role: "user",
-                        text: "Crawle die Website von agorum",
+                        text: "Fetch the current metrics",
                         isToolCall: false
                     }]
                 },
-                // Tool call without announcement
+                // Tool call starts (no text returned)
                 {
                     running: true,
                     offsets: { history: 2, text: 0 },
@@ -202,24 +199,18 @@
                         isToolCall: true
                     }]
                 },
-                // Still running, no text yet
-                {
-                    running: true,
-                    offsets: { history: 2, text: 0 },
-                    history: []
-                },
-                // Tool completed, response comes
+                // Complete without text
                 {
                     running: false,
                     offsets: { history: 3, text: 0 },
                     history: [{
                         role: "assistant",
-                        text: "Die Website wurde erfolgreich gecrawlt. Hier sind die Ergebnisse...",
+                        text: "",
                         isToolCall: false
                     }]
                 }
             ];
-            updateStatus('Simuliere: Tool-Call ohne Text → Placeholder sollte erscheinen');
+            updateStatus('Simulating: tool call without text (placeholder should stay visible)');
         }
         
         function simulateToolCallThenText() {
@@ -231,7 +222,7 @@
                     offsets: { history: 1, text: 0 },
                     history: [{
                         role: "user",
-                        text: "Analysiere die Daten",
+                        text: "Analyse the dataset",
                         isToolCall: false
                     }]
                 },
@@ -251,7 +242,7 @@
                     offsets: { history: 3, text: 5 },
                     history: [{
                         role: "assistant",
-                        text: "Die A",
+                        text: "The analysis",
                         isToolCall: false
                     }]
                 },
@@ -261,7 +252,7 @@
                     offsets: { history: 2, text: 20 },
                     history: [{
                         role: "assistant",
-                        text: "nalyse ist fertig.",
+                        text: " is complete. Everything looks good.",
                         isToolCall: false
                     }]
                 },
@@ -272,7 +263,7 @@
                     history: []
                 }
             ];
-            updateStatus('Simuliere: Tool-Call → Placeholder verschwindet wenn Text kommt');
+            updateStatus('Simulating: tool call transitions into streaming text');
         }
         
         function simulateMultipleToolCalls() {
@@ -284,7 +275,7 @@
                     offsets: { history: 1, text: 0 },
                     history: [{
                         role: "user",
-                        text: "Führe mehrere Analysen durch",
+                        text: "Run several analyses one after another",
                         isToolCall: false
                     }]
                 },
@@ -324,12 +315,12 @@
                     offsets: { history: 5, text: 0 },
                     history: [{
                         role: "assistant",
-                        text: "Alle Analysen abgeschlossen. Hier sind die Ergebnisse...",
+                        text: "All analyses are complete. Here are the combined results…",
                         isToolCall: false
                     }]
                 }
             ];
-            updateStatus('Simuliere: Mehrere Tool-Calls nacheinander');
+            updateStatus('Simulating: multiple tool calls in sequence');
         }
         
         function resetChat() {
@@ -337,7 +328,7 @@
                 chatWidget.resetConversation();
                 responseIndex = 0;
                 mockServerResponses = [];
-                updateStatus('Chat zurückgesetzt');
+                updateStatus('Chat reset');
             }
         }
     </script>

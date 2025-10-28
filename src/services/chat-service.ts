@@ -86,7 +86,7 @@ export class ChatService {
       }
       return id;
     } catch (error) {
-      console.warn("AlbertChat: Chat-ID konnte nicht gelesen werden.", error);
+      console.warn("ALBERT | AI Chat: Failed to read chat ID from storage.", error);
       return null;
     }
   }
@@ -105,7 +105,7 @@ export class ChatService {
         this.storage.removeItem(this.config.storageKey);
       }
     } catch (error) {
-      console.warn("AlbertChat: Chat-ID konnte nicht gespeichert werden.", error);
+      console.warn("ALBERT | AI Chat: Failed to persist chat ID.", error);
     }
   }
 
@@ -151,7 +151,7 @@ export class ChatService {
         this.persistChatId(response.id);
         return true;
       } catch (error) {
-        console.error("AlbertChat: Initialisierung des Chats fehlgeschlagen.", error);
+        console.error("ALBERT | AI Chat: Failed to initialize chat session.", error);
         this.clearSession();
         return false;
       } finally {
@@ -215,7 +215,7 @@ export class ChatService {
         this.pollFailureCount = 0;
         return response ?? null;
       } catch (error) {
-        console.error("AlbertChat: Abrufen der Chat-Informationen fehlgeschlagen.", error);
+        console.error("ALBERT | AI Chat: Failed to fetch chat information.", error);
         this.pollFailureCount++;
         const status = (error as { status?: number }).status;
         if (status === 404) {
@@ -283,7 +283,7 @@ export class ChatService {
    */
   private buildInfoPath(fullRefresh: boolean): string {
     if (!this.chatId) {
-      throw new Error("Chat-ID fehlt");
+      throw new Error("Chat ID is missing");
     }
     const base = `/info/${encodeURIComponent(this.chatId)}`;
     if (fullRefresh || !this.chatOffsets) {
@@ -301,7 +301,7 @@ export class ChatService {
    */
   private buildServiceUrl(path: string): string {
     if (!this.config) {
-      throw new Error("Servicekonfiguration fehlt");
+      throw new Error("Service configuration is missing");
     }
     const suffix = path.startsWith("/") ? path : `/${path}`;
     return `${this.config.endpoint}${suffix}`;
@@ -362,7 +362,7 @@ export class ChatService {
       storage.removeItem(testKey);
       return storage;
     } catch (error) {
-      console.warn("AlbertChat: Zugriff auf localStorage nicht möglich.", error);
+      console.warn("ALBERT | AI Chat: localStorage is not accessible.", error);
       return null;
     }
   }

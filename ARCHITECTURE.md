@@ -1,237 +1,141 @@
-# Albert AI Chat Widget - Architektur Dokumentation
+# ALBERT \| AI Chat Widget – Architecture Guide
 
-## Überblick
+This document explains how the ALBERT \| AI chat widget is structured after refactoring the original monolithic 4,200-line script into a modular codebase. Use it as a map when you need to extend or debug the widget.
 
-Das Albert AI Chat Widget wurde von einer monolithischen 4200+ Zeilen Datei in eine modulare, gut organisierte Codebasis refaktoriert. Diese Dokumentation beschreibt die neue Architektur und erklärt, wo sich welche Funktionalität befindet.
+## Overview
 
-## Verzeichnisstruktur
+- **Framework/Runtime:** Vanilla TypeScript compiled with `tsup`, rendered inside a Shadow DOM
+- **Distribution:** ESM bundle (`dist/index.js`) and IIFE/global bundle (`dist/index.global.js`)
+- **State:** Managed via lightweight classes (`MessageManager`, widget state fields)
+- **Styling:** Generated CSS string injected into the Shadow DOM (`styles/builder.ts`)
+- **Mock Data:** Built-in simulated responses, ready to be replaced by REST endpoints
+
+## Directory Structure
 
 ```
 src/
-├── index.ts                 # Haupteinstiegspunkt und ChatWidget Klasse
-├── types/                   # TypeScript Typdefinitionen
-│   └── index.ts            # Alle Interfaces, Types und Enums
-├── utils/                   # Utility-Funktionen
-│   ├── index.ts            # Zentraler Export-Punkt für alle Utils
-│   ├── html-utils.ts       # HTML-Escaping und Sanitization
-│   ├── format-utils.ts     # Zeit-Formatierung und Parsing
-│   ├── general-utils.ts    # Allgemeine Hilfsfunktionen
-│   └── dom-utils.ts        # DOM-Manipulation und UI-Helfer
-├── config/                  # Konfiguration
-│   └── default-options.ts  # Standard-Konfigurationswerte
-├── renderer/                # Rendering-Logik
-│   └── markdown.ts         # Markdown-zu-HTML Konvertierung
-├── styles/                  # Styling
-│   └── builder.ts          # CSS-Generierung und Theme-Variablen
-├── services/                # Backend-Kommunikation
-│   └── chat-service.ts     # Chat API Service Layer
-├── managers/                # State Management
-│   └── message-manager.ts  # Nachrichten-Verwaltung
-└── ui/                      # UI-Komponenten
-    └── builders.ts         # DOM-Element Erstellungsfunktionen
+├─ index.ts               # Main entry point, ChatWidget orchestration
+├─ types/                 # TypeScript type definitions
+│  └─ index.ts            # All interfaces, types, enums
+├─ utils/                 # Shared utility functions
+│  ├─ index.ts            # Barrel exporting every util
+│  ├─ html-utils.ts       # HTML escaping and sanitizing
+│  ├─ format-utils.ts     # Time formatting and parsing helpers
+│  ├─ general-utils.ts    # Deep merge, clamping, miscellaneous helpers
+│  └─ dom-utils.ts        # DOM helpers for icon creation, etc.
+├─ config/
+│  └─ default-options.ts  # Default widget configuration
+├─ renderer/
+│  └─ markdown.ts         # Markdown → HTML rendering
+├─ styles/
+│  └─ builder.ts          # CSS generation and theme variables
+├─ services/
+│  └─ chat-service.ts     # REST communication layer (currently mock friendly)
+├─ managers/
+│  └─ message-manager.ts  # Message bookkeeping and lookup helpers
+└─ ui/
+   └─ builders.ts         # Functions that create DOM fragments
 ```
 
-## Module im Detail
+## Modules in Detail
 
-### 1. **types/index.ts** - Typdefinitionen
-Enthält alle TypeScript-Definitionen:
-- `ChatRole`: Enum für Nutzer-/Agent-Rollen
-- `ChatMessage`: Interface für Chat-Nachrichten
-- `ChatWidgetOptions`: Hauptkonfigurationsinterface
-- Service-bezogene Interfaces (Request/Response)
-- UI-Element Referenzen
-- Utility-Types wie `DeepPartial`
+### `index.ts` – ChatWidget Orchestration
 
-### 2. **utils/** - Utility-Funktionen
+- Handles widget life cycle (`mount`, `open`, `close`, `destroy`)
+- Applies themes, renders initial state, and sets up event listeners
+- Coordinates the message list via `MessageManager`
+- Talks to `ChatService` for mock or real responses
+- Manages timers (teaser bubble, resize observers) and accessibility attributes
 
-#### **html-utils.ts**
-- `escapeHtml()`: XSS-sichere HTML-Escaping
-- `sanitizeUrl()`: URL-Validierung und Sanitization
-- `decodeHtmlEntities()`: HTML-Entity Dekodierung
-- `renderPlainText()`: Text-zu-HTML Konvertierung
+### `types/index.ts`
 
-#### **format-utils.ts**
-- `formatTime()`: Zeitstempel-Formatierung
-- `parseTimestamp()`: String-zu-Date Parsing
-- `parseElementArray()`: HTML-Element Array Parsing
+- Central definition of every public interface (`ChatWidgetOptions`, `ChatMessage`, `ChatWidgetTheme`, etc.)
+- Allows consumers to import `DeepPartial<ChatWidgetOptions>` for safe overrides
 
-#### **general-utils.ts**
-- `deepMerge()`: Rekursives Object-Merging
-- `clamp()`: Wert-Begrenzung
-- `normalizeEndpoint()`: URL-Normalisierung
-- `generateUniqueId()`: ID-Generierung
-- `isSvgIcon()`: SVG-URL Erkennung
+### `config/default-options.ts`
 
-#### **dom-utils.ts**
-- `createIconElement()`: Icon-Element Erstellung
-- `scrollToBottom()`: Auto-Scroll Funktionalität
-- `adjustTextareaHeight()`: Dynamische Textarea-Höhe
-- `attachTypingCursor()`: Typing-Indicator Positionierung
-- `findLastContentNode()`: DOM-Traversierung
+- Provides a complete default configuration object
+- Values are deeply merged with user-supplied options inside `ChatWidget`
+- If you add new configuration properties, update this file and the type definitions together
 
-### 3. **config/default-options.ts** - Konfiguration
-Zentrale Stelle für alle Default-Werte:
-- Standard-Texte und Labels
-- Theme-Einstellungen
-- Service-Konfiguration
-- UI-Dimensionen
-- Feature-Flags
+### `utils/`
 
-### 4. **renderer/markdown.ts** - Markdown Rendering
-Sichere Markdown-zu-HTML Konvertierung:
-- `SafeMarkdownRenderer`: Custom marked.js Renderer
-- `renderMarkdown()`: Haupt-Rendering-Funktion
-- XSS-Schutz durch HTML-Escaping
-- Code-Highlighting Unterstützung
-- Link-Sanitization
+- `general-utils.ts`: Deep merge, clamping, endpoint normalization
+- `format-utils.ts`: Time formatting helpers with graceful fallback if `Intl` fails
+- `html-utils.ts`: Escaping and sanitizing helpers for plain text rendering
+- `dom-utils.ts`: Helpers to build icon elements (emoji, SVG, image)
+- `index.ts`: Barrel export for convenience (`import { deepMerge } from '../utils'`)
 
-### 5. **styles/builder.ts** - CSS Generierung
-Dynamische Stylesheet-Erstellung:
-- `buildStyles()`: Generiert komplettes CSS
-- `generateThemeVariables()`: CSS Custom Properties
-- Responsive Design Regeln
-- Animations-Definitionen
-- Shadow DOM kompatibles Styling
+### `styles/builder.ts`
 
-### 6. **services/chat-service.ts** - Backend Service
-API-Kommunikation und Session-Management:
-- `ChatService` Klasse mit:
-  - `initSession()`: Session-Initialisierung
-  - `sendMessage()`: Nachrichten senden
-  - `fetchInfo()`: Historie abrufen
-  - `fetchHistory()`: Vollständige Historie
-- Session-ID Persistierung (localStorage)
-- Polling-Mechanismus für Updates
-- Fehlerbehandlung und Retry-Logik
+- Generates a single CSS string with all widget styles
+- Uses CSS custom properties (theme variables) for dynamic updates
+- Includes responsive rules to switch to full-screen mode on small devices
 
-### 7. **managers/message-manager.ts** - State Management
-Zentrale Nachrichtenverwaltung:
-- `MessageManager` Klasse mit:
-  - `addMessage()`: Nachricht hinzufügen
-  - `updateMessage()`: Status aktualisieren
-  - `removeMessage()`: Nachricht entfernen
-  - `hydrateFromHistory()`: Historie laden
-- Tool-Call Verwaltung
-- DOM-Element Referenzen
-- Nachrichtenstatus-Tracking
+### `ui/builders.ts`
 
-### 8. **ui/builders.ts** - UI Komponenten
-Factory-Funktionen für UI-Elemente:
-- `createHeader()`: Chat-Header mit Buttons
-- `createInputArea()`: Eingabebereich
-- `createMessageElement()`: Nachrichtenblasen
-- `createConsentPrompt()`: Datenschutz-Dialog
-- `createToolActivityIndicator()`: Tool-Status
-- `createLauncherButton()`: Widget-Öffner
-- `createTeaserBubble()`: Teaser-Animation
-- `createFooterLinks()`: Footer-Navigation
-- `createDisclaimer()`: Disclaimer-Text
+- Small pure functions that create DOM structures
+- `createHeader`, `createInputArea`, `createFooterLinks`, `createMessageElement`, etc.
+- Keeps the main widget class free from manual DOM manipulation boilerplate
 
-### 9. **index.ts** - Hauptmodul
-Orchestrierung aller Module:
-- `ChatWidget` Klasse:
-  - Lifecycle-Management (mount/destroy)
-  - Event-Handling
-  - State-Koordination
-  - UI-Updates
-  - Service-Integration
-- `init()`: Convenience-Funktion
-- Modul-Exports für externe Nutzung
+### `managers/message-manager.ts`
 
-## Datenfluss
+- Stores chat history inside the widget
+- Provides lookup and mutation helpers used by `ChatWidget`
+- Responsible for indexing tool-call placeholders and caching tool text
 
-```mermaid
-graph TD
-    A[User Input] --> B[ChatWidget]
-    B --> C[MessageManager]
-    C --> D[ChatService]
-    D --> E[Backend API]
-    E --> D
-    D --> C
-    C --> F[UI Builders]
-    F --> G[DOM Update]
-    
-    H[Markdown Renderer] --> F
-    I[Styles Builder] --> G
-    J[Utils] --> B
-    J --> C
-    J --> F
-```
+### `services/chat-service.ts`
 
-## Verwendungsbeispiel
+- Encapsulates all HTTP calls to the backend
+- Stores and retrieves chat IDs using `localStorage`
+- Polls the backend for new messages (mock-friendly; real endpoints can be plugged in)
+- Handles request throttling, error logging, and abort signals
 
-```typescript
-import { init } from './index';
+### `renderer/markdown.ts`
 
-// Widget mit Custom-Konfiguration initialisieren
-const widget = init({
-  theme: {
-    primaryColor: '#007bff',
-    borderRadius: 8
-  },
-  texts: {
-    headerTitle: 'Support Chat',
-    initialMessage: 'Wie kann ich Ihnen helfen?'
-  },
-  serviceConfig: {
-    endpoint: 'https://api.example.com/chat',
-    headers: {
-      'Authorization': 'Bearer token'
-    }
-  }
-});
+- Converts Markdown content to HTML for agent messages
+- Sanitizes output before injecting into the DOM
 
-// Widget öffnen
-widget.open();
+## Data Flow
 
-// Widget zerstören
-widget.destroy();
-```
+1. **Initialization**: `AlbertChat.init()` creates a `ChatWidget`.
+2. **Mounting**: `ChatWidget.mount()` attaches the widget, injects CSS, renders initial elements.
+3. **User Interaction**:
+   - Typing triggers textarea auto-sizing (`utils/adjustTextareaHeight`).
+   - Sending a message pushes the message into `MessageManager` and `ChatService`.
+4. **Service Polling**: `ChatService` polls for updates; responses are fed back into `ChatWidget`.
+5. **Rendering**:
+   - New messages go through `createMessageElement`.
+   - Tool calls leverage `toolCallTextCache` to keep text visible across polls.
+6. **Teardown**: `destroy()` removes listeners, stops timers, and detaches the host.
 
-## Build-Prozess
+## Extensibility Tips
 
-```bash
-# TypeScript kompilieren
-npm run build
+- **Adding new UI controls**: create DOM builders in `ui/builders.ts`, wire them up in `ChatWidget`.
+- **New configuration options**: update the type (`types/index.ts`), defaults (`config/default-options.ts`), and wherever the option is read.
+- **Styling tweaks**: adjust theme variables or tweak the CSS template in `styles/builder.ts`.
+- **Backend integration**: replace mock responses by pointing `serviceConfig.endpoint` to a real API and extending `chat-service.ts`.
+- **Testing**: The `examples/` folder contains demo pages that are useful for manual verification. Automated tests live under `playwright/` (if configured).
 
-# Entwicklungsmodus mit Watch
-npm run dev
+## Naming Conventions
 
-# Type-Checking
-npm run lint
+- `ALBERT | AI` is the brand name shown in user-facing copy.
+- Classes and helpers keep the `AlbertChat` prefix for backward compatibility in code.
+- Files use kebab-case; exported symbols use PascalCase for classes and camelCase for functions.
 
-# Tests ausführen
-npm test
-```
+## Build & Development
 
-## Vorteile der neuen Architektur
+- `npm run build`: Bundles the widget using `tsup`.
+- `npm run dev`: Starts the local demo server (see `scripts/dev-server.mjs`).
+- `npm test`: Runs Playwright tests (optional).
 
-1. **Modularität**: Klare Trennung der Verantwortlichkeiten
-2. **Wartbarkeit**: Einfacher zu verstehen und zu erweitern
-3. **Testbarkeit**: Einzelne Module können isoliert getestet werden
-4. **Wiederverwendbarkeit**: Utilities und Komponenten sind wiederverwendbar
-5. **Type-Safety**: Zentrale Typdefinitionen
-6. **Performance**: Kleinere Bundle-Größe durch Tree-Shaking
-7. **Dokumentation**: Jedes Modul ist klar dokumentiert
+## Troubleshooting Checklist
 
-## Migration von der alten Version
+- **Widget does not mount**: Ensure `AlbertChat.init` is called after DOMContentLoaded.
+- **Styles missing**: Verify the host element is attached and CSS variables are generated.
+- **Messages disappear**: Check `MessageManager` and the tool call cache; run the tool-call demos in `examples/`.
+- **Consent flow stuck**: Make sure `requirePrivacyConsent` matches the intended logic and the service stores chat IDs correctly.
 
-Die API bleibt vollständig kompatibel. Bestehende Integrationen funktionieren ohne Änderungen:
+---
 
-```javascript
-// Alte Version (funktioniert weiterhin)
-AlbertChat.init({ /* options */ });
-
-// Neue Version (gleiche API)
-AlbertChat.init({ /* options */ });
-```
-
-## Weiterentwicklung
-
-Für neue Features:
-1. Typen in `types/index.ts` definieren
-2. Logik im passenden Modul implementieren
-3. UI-Komponenten in `ui/builders.ts` erstellen
-4. Integration in `ChatWidget` Klasse
-5. Tests hinzufügen
-6. Dokumentation aktualisieren
+Feel free to update this guide whenever new modules or patterns are introduced. Keeping architectural documentation current makes it far easier for future contributors to navigate the project.

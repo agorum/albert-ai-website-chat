@@ -1,37 +1,37 @@
-# Albert Chat Widget
+# ALBERT \| AI Chat Widget
 
-Eine konfigurierbare Chat-Widget-Lösung, die sich per Script-Tag in beliebige Webseiten einbinden lässt. Die Anwendung setzt auf moderne Browser-Technologien (Shadow DOM, TypeScript, Bundling via tsup) und arbeitet aktuell mit Mockup-Daten. Eine REST-Anbindung kann später ergänzt werden.
+A configurable chat widget that can be embedded into any website with a single script tag. The project is written in TypeScript, renders inside a Shadow DOM, and currently ships with mock responses so it can run without a backend. A REST integration can be added later.
 
 ## Features
 
-- Launcher-Button unten rechts, der das Chatfenster öffnet/schließt
-- Hinweis-Sprechblase nach einstellbarer Zeit, solange der Chat noch nicht geöffnet wurde
-- Konfigurierbare Farben, Schriftart, Texte, Icons, Abmessungen und Footer-Links
-- Responsive Chat-Oberfläche oberhalb des Launchers mit Header, Reload- und Schließen-Icon
-- Scrollbarer Nachrichtenbereich mit voneinander unterscheidbaren Nutzer-/Agent-Bubbles
-- Eingabebereich mit automatischer Größenanpassung (max. 5 Zeilen), Enter zum Senden, Button daneben
-- Simulierter Agent mit Tipp-Indikator und gestreamten Antworten nach zufälligen Verzögerungen
-- Optionale Datenschutzabfrage vor dem ersten Nachrichtenaustausch (abschaltbar und frei konfigurierbar)
-- Typdefinitionen und ESM/IIFE-Bundles für einfache Integration in Build- oder klassische Umgebungen
+- Launcher button in the lower-right corner that opens or closes the chat window
+- Optional teaser bubble that appears after a configurable delay if the chat has not been opened yet
+- Fully themable (colors, typography, copy, icons, dimensions, footer links)
+- Responsive chat window with header, reload action, and close action
+- Scrollable transcript with clearly separated user and agent bubbles
+- Input area with auto-resizing textarea (up to 5 lines), Enter-to-send, and a send button
+- Simulated agent with typing indicator and streamed responses using randomized delays
+- Optional privacy consent flow before the first message is sent
+- TypeScript types plus ESM and IIFE bundles for modern build setups or classic script tags
 
 ## Installation
 
 ```bash
 npm install
 npm run build
-npm test          # optional: End-to-End-Test mit Playwright
+npm test          # optional: end-to-end tests with Playwright
 ```
 
-`dist/index.js` enthält das ESM-Bundle, `dist/index.global.js` das IIFE-Bundle für direkte Nutzung über ein Script-Tag.
+The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/index.global.js`.
 
-## Einbindung per Script-Tag
+## Embedding with a Script Tag
 
 ```html
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Albert Chat Widget – Beispiel</title>
+    <title>ALBERT | AI Chat Widget – Example</title>
     <script defer src="./dist/index.global.js"></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
@@ -42,9 +42,9 @@ npm test          # optional: End-to-End-Test mit Playwright
 
         AlbertChat.init({
           texts: {
-            headerTitle: 'Albert Demo',
-            headerSubtitle: 'Stellen Sie Ihre Fragen',
-            teaserText: 'Fragen Sie uns – wir helfen gerne!',
+            headerTitle: 'ALBERT | AI Demo',
+            headerSubtitle: 'Ask anything you need',
+            teaserText: 'Questions? We are happy to help!',
           },
           serviceConfig: {
             endpoint: serviceEndpoint,
@@ -52,11 +52,11 @@ npm test          # optional: End-to-End-Test mit Playwright
           },
           welcomeMessage: {
             enabled: true,
-            text: 'Hallo! Wie kann ich Ihnen helfen? ✨',
+            text: 'Hello! How can ALBERT | AI support you today? 🤖',
           },
           disclaimer: {
             enabled: true,
-            text: 'Hinweis: Albert kann Fehler machen – bitte überprüfen Sie wichtige Aussagen.',
+            text: 'Note: ALBERT | AI replies are generated automatically. Please verify important details.',
             styles: {
               fontSize: '0.7rem',
             },
@@ -67,8 +67,8 @@ npm test          # optional: End-to-End-Test mit Playwright
             userMessageColor: '#7c3aed',
           },
           footerLinks: [
-            { label: 'Datenschutz', href: '/datenschutz', target: '_blank' },
-            { label: 'Impressum', href: '/impressum', target: '_blank' }
+            { label: 'Privacy', href: '/privacy', target: '_blank' },
+            { label: 'Imprint', href: '/imprint', target: '_blank' }
           ],
           dimensions: {
             widthPercent: 35,
@@ -83,14 +83,14 @@ npm test          # optional: End-to-End-Test mit Playwright
   </head>
   <body>
     <main>
-      <h1>Ihre Website</h1>
-      <p>Integrieren Sie den Albert Chat überall dort, wo er gebraucht wird.</p>
+      <h1>Your Website</h1>
+      <p>Add the ALBERT | AI chat wherever your visitors need support.</p>
     </main>
   </body>
 </html>
 ```
 
-## Verwendung in Bundlern (ESM)
+## Usage with Bundlers (ESM)
 
 ```ts
 import { init } from 'albert-chat-widget';
@@ -102,7 +102,7 @@ const endpoint =
 
 init({
   texts: {
-    launcherLabel: 'Frag Albert',
+    launcherLabel: 'Ask ALBERT | AI',
   },
   serviceConfig: {
     endpoint,
@@ -110,20 +110,20 @@ init({
   },
   welcomeMessage: {
     enabled: true,
-    text: 'Willkommen zurück! Ich bin bereit. 🤖',
+    text: 'Welcome back! ALBERT | AI is ready to help. 🤖',
   },
   disclaimer: {
     enabled: true,
-    text: 'Hinweis: Antworten werden automatisch generiert.',
+    text: 'Note: Responses are generated automatically. Please double-check anything critical.',
   },
 });
 ```
 
-## Konfigurationsübersicht
+## Configuration Overview
 
 ```ts
 interface ChatWidgetOptions {
-  target?: HTMLElement | string; // Standard: document.body
+  target?: HTMLElement | string; // default: document.body
   theme: {
     fontFamily: string;
     primaryColor: string;
@@ -203,21 +203,19 @@ interface ChatWidgetOptions {
 }
 ```
 
-> **Hinweis:** Alle Optionen sind beim Aufruf von `init()` teil-konfigurierbar (Deep Merge mit Defaults).
+> **Note:** The `init()` helper performs a deep merge with the defaults, so you can override only the fields you need.
 
-## Nächste Schritte
+## Roadmap Ideas
 
-- An REST-Endpunkte anbinden (z. B. in `simulateAgentReply` oder via neuem Message-Service)
-- State-Management/Queue erweitern, sobald reale Backend-Antworten eingehen
-- Optional: Typing-Indikatoren, Offline-State oder Lokalisierung über mehrere Sprachpakete
+- Connect the widget to real REST endpoints (e.g., replace the mock reply pipeline)
+- Extend the state management once live responses are delivered by the backend
+- Optional: add richer typing indicators, offline handling, or a full localization layer
 
-Viel Erfolg beim Einbinden! Bei Fragen gerne melden.
-
-## Lokaler Testserver
+## Local Test Server
 
 ```bash
 npm run build
 ./start.sh
 ```
 
-Anschließend steht die Demo unter `http://localhost:8080/index.html` bereit. Der Server akzeptiert auch andere Verzeichnisse als Argument (z. B. `./start.sh public`).
+The demo becomes available at `http://localhost:8080/index.html`. You can pass a different directory to the script, for example `./start.sh public`.

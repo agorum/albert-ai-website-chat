@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -82,81 +82,73 @@
 </head>
 <body>
     <div class="container">
-        <h1>🔧 ToolCall Text Persistence Fix Test</h1>
+        <h1>🧪 ToolCall Text Persistence Fix Test</h1>
         
         <div class="info">
             <h2>Test Scenario Overview</h2>
-            <p>This page tests the critical fix for toolCall text persistence. The main issue was that toolCalls WITH text were disappearing when new history entries arrived.</p>
-            <p><strong>Root Cause:</strong> The display decision was based on <code>existingMessage.content</code> which could be empty after a poll, instead of checking the cache.</p>
-            <p><strong>Fix Applied:</strong> Now checks <code>toolCallTextCache</code> when deciding whether to keep a toolCall visible.</p>
+            <p>This page verifies the critical fix for tool call text persistence in the ALBERT | AI widget. The original issue caused tool calls with text to disappear when subsequent history entries were received.</p>
+            <p><strong>Root Cause:</strong> The display decision relied on <code>existingMessage.content</code>, which could be empty after a poll instead of looking at the cached tool call text.</p>
+            <p><strong>Fix Applied:</strong> The implementation now consults <code>toolCallTextCache</code> when deciding whether a tool call bubble should remain visible.</p>
         </div>
 
         <div class="test-section">
-            <h3>📋 Test Case 1: ToolCall with Empty Text → Text Arrives</h3>
+            <h3>🔍 Test Case 1: Tool Call without Text → Text Arrives Later</h3>
             <div class="expected">
                 <strong>Expected Behavior:</strong>
                 <ol>
-                    <li>ToolCall arrives without text → Show "Recherchiere..." placeholder</li>
-                    <li>Follow-up message with text arrives → Replace placeholder with actual text</li>
-                    <li>Text should NEVER disappear on subsequent polls</li>
+                    <li>Tool call arrives without text → show “Looking it up…” placeholder</li>
+                    <li>Follow-up message delivers text → replace placeholder with the tool output</li>
+                    <li>Text must stay visible during all following polls</li>
                 </ol>
             </div>
             <div class="logs" id="test1-logs">Console logs will appear here...</div>
         </div>
 
         <div class="test-section">
-            <h3>📋 Test Case 2: ToolCall with Initial Text</h3>
+            <h3>✅ Test Case 2: Tool Call with Initial Text</h3>
             <div class="expected">
                 <strong>Expected Behavior:</strong>
                 <ol>
-                    <li>ToolCall arrives WITH text → Show text immediately</li>
-                    <li>Text should remain visible through all subsequent polls</li>
-                    <li>Cache should preserve text even if server sends empty in later polls</li>
+                    <li>Tool call arrives with text → show text immediately</li>
+                    <li>Text must stay visible during all following polls</li>
+                    <li>Cache should preserve the text even if a later poll returns an empty payload</li>
                 </ol>
             </div>
             <div class="logs" id="test2-logs">Console logs will appear here...</div>
         </div>
 
         <div class="test-section">
-            <h3>📋 Test Case 3: Multiple ToolCalls in Sequence</h3>
+            <h3>🧩 Test Case 3: Multiple Tool Calls in Sequence</h3>
             <div class="expected">
                 <strong>Expected Behavior:</strong>
                 <ol>
-                    <li>Multiple toolCalls arrive in sequence</li>
-                    <li>Each should maintain its own text independently</li>
-                    <li>Cache should work for all indices</li>
+                    <li>Multiple tool calls arrive one after another</li>
+                    <li>Each tool call maintains its own cached text</li>
+                    <li>No tool call with text should be removed once displayed</li>
                 </ol>
             </div>
             <div class="logs" id="test3-logs">Console logs will appear here...</div>
         </div>
 
         <div class="controls">
-            <h3>Manual Testing</h3>
-            <p>Open the chat widget and observe the console for detailed logging:</p>
-            <ul>
-                <li><strong>[CACHE UPDATE]</strong> - New text stored in cache</li>
-                <li><strong>[CACHE HIT]</strong> - Using cached text</li>
-                <li><strong>[DISPLAY FIX]</strong> - Cache used for display decision</li>
-                <li><strong>[KEEPING]</strong> - ToolCall kept visible</li>
-                <li><strong>[REMOVING]</strong> - Element being removed (should NOT happen for toolCalls with text!)</li>
-            </ul>
+            <h3>Controls</h3>
             <button onclick="clearConsole()">Clear Console</button>
             <button onclick="location.reload()">Reload Page</button>
         </div>
 
         <div class="test-section">
-            <h3>🎯 Key Logs to Watch</h3>
+            <h3>📝 Key Logs to Watch</h3>
             <div class="expected">
                 <strong>Success Indicators:</strong>
                 <ul>
-                    <li>✅ <code>[DISPLAY FIX] Index X: Using cached text for display decision</code></li>
-                    <li>✅ <code>[KEEPING] Index X: Keeping toolCall visible</code></li>
-                    <li>✅ <code>[CACHE HIT] Index X: Using cached text</code></li>
+                    <li>✓ <code>[DISPLAY FIX] Index X: Using cached text for display decision</code></li>
+                    <li>✓ <code>[KEEPING] Index X: Keeping toolCall visible</code></li>
+                    <li>✓ <code>[CACHE HIT] Index X: Using cached text</code></li>
                 </ul>
                 <strong>Failure Indicators:</strong>
                 <ul>
-                    <li>❌ <code>[REMOVING] Index X: Removing message element!</code> for toolCalls with text</li>
-                    <li>❌ <code>[NO CACHE] Index X: No text from server and no cache!</code></li>
+                    <li>⚠️ <code>[REMOVING] Index X: Removing message element!</code> for tool calls with text</li>
+                    <li>⚠️ <code>[NO CACHE] Index X: No text from server and no cache!</code></li>
                 </ul>
             </div>
         </div>
@@ -213,7 +205,7 @@
                 }
                 
                 if (targetElement) {
-                    const timestamp = new Date().toLocaleTimeString('de-DE', { 
+                    const timestamp = new Date().toLocaleTimeString('en-US', { 
                         hour: '2-digit', 
                         minute: '2-digit', 
                         second: '2-digit',
@@ -241,8 +233,8 @@
         // Initialize chat widget
         const chat = new AlbertChatWidget({
             apiUrl: 'http://localhost:3000/api/chat',
-            title: 'ToolCall Test Assistant',
-            placeholder: 'Test toolCall text persistence...',
+            title: 'ALBERT | AI ToolCall Assistant',
+            placeholder: 'Test tool call text persistence...',
             position: 'bottom-right',
             theme: 'light',
             width: '380px',
@@ -251,8 +243,8 @@
 
         chat.appendTo(document.getElementById('chat-container'));
 
-        console.log('🚀 Test page loaded. Chat widget initialized.');
-        console.log('📝 Open the chat and send a message to trigger toolCalls.');
+        console.log('✅ Test page loaded. Chat widget initialized.');
+        console.log('💬 Open the chat and send a message to trigger tool calls.');
         console.log('👀 Watch for [DISPLAY FIX], [KEEPING], and [CACHE] logs.');
     </script>
 </body>

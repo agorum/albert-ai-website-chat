@@ -9,11 +9,11 @@ PROXY_TARGET="${PROXY_TARGET:-https://www.agorum.com/albert/chat}"
 cd "$ROOT_DIR"
 
 if [ ! -d dist ]; then
-  echo "Build-Ordner nicht gefunden. Starte ./build.sh ..."
+  echo "Build folder not found. Running ./build.sh ..."
   ./build.sh
 fi
 
-echo "Starte lokalen CORS-Proxy für ${PROXY_TARGET} auf Port ${PROXY_PORT} ..."
+echo "Starting local CORS proxy for ${PROXY_TARGET} on port ${PROXY_PORT} ..."
 node scripts/cors-proxy.mjs "$PROXY_TARGET" "$PROXY_PORT" &
 PROXY_PID=$!
 
