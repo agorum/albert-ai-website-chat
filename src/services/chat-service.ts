@@ -26,10 +26,10 @@ export class ChatService {
   private storage: Storage | null = null;
   private pollTimerId: number | null = null;
   private pollFailureCount = 0;
-  private infoPollInFlight = false;
-  private infoFetchPromise: Promise<boolean> | null = null;
+  private infoFetchPromise: Promise<ChatServiceInfoResponse | null> | null = null;
   private isInitializingSession = false;
   private initializingPromise: Promise<boolean> | null = null;
+  private lastRequestedOffsets: ChatServiceOffsets | null = null;
 
   constructor(config?: ChatServiceConfig) {
     if (config?.endpoint) {
@@ -116,6 +116,7 @@ export class ChatService {
     this.chatId = null;
     this.chatOffsets = null;
     this.pollFailureCount = 0;
+    this.lastRequestedOffsets = null;
     this.persistChatId(null);
     this.stopPolling();
   }
@@ -197,16 +198,22 @@ export class ChatService {
       return null;
     }
     if (this.infoFetchPromise) {
-      await this.infoFetchPromise;
-      return null;
+      return this.infoFetchPromise;
     }
 
-    const promise = (async (): Promise<boolean> => {
+    this.lastRequestedOffsets = fullRefresh
+      ? null
+      : this.chatOffsets
+      ? { ...this.chatOffsets }
+      : { history: 0, text: 0 };
+
+    const path = this.buildInfoPath(fullRefresh);
+
+    this.infoFetchPromise = (async (): Promise<ChatServiceInfoResponse | null> => {
       try {
-        const path = this.buildInfoPath(fullRefresh);
         const response = await this.requestJson<ChatServiceInfoResponse>(path, { method: "GET" });
         this.pollFailureCount = 0;
-        return true;
+        return response ?? null;
       } catch (error) {
         console.error("AlbertChat: Abrufen der Chat-Informationen fehlgeschlagen.", error);
         this.pollFailureCount++;
@@ -214,19 +221,13 @@ export class ChatService {
         if (status === 404) {
           this.clearSession();
         }
-        return false;
+        return null;
+      } finally {
+        this.infoFetchPromise = null;
       }
     })();
 
-    this.infoFetchPromise = promise;
-    const result = await promise;
-    this.infoFetchPromise = null;
-
-    if (result) {
-      const path = this.buildInfoPath(fullRefresh);
-      return await this.requestJson<ChatServiceInfoResponse>(path, { method: "GET" });
-    }
-    return null;
+    return this.infoFetchPromise;
   }
 
   /**
@@ -254,6 +255,13 @@ export class ChatService {
       window.clearTimeout(this.pollTimerId);
       this.pollTimerId = null;
     }
+  }
+
+  /**
+   * Gets the offsets that were used for the most recent info request
+   */
+  getLastRequestedOffsets(): ChatServiceOffsets | null {
+    return this.lastRequestedOffsets ? { ...this.lastRequestedOffsets } : null;
   }
 
   /**

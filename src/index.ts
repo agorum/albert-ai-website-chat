@@ -32,19 +32,20 @@ import {
   DeepPartial,
   MessageElementRefs,
   ChatServiceHistoryEntry,
-  ChatServiceInfoResponse
+  ChatServiceInfoResponse,
+  ChatServiceOffsets
 } from './types';
 
 import {
   deepMerge,
   clamp,
   formatTime,
+  parseTimestamp,
   decodeHtmlEntities,
+  renderPlainText,
   scrollToBottom,
   adjustTextareaHeight,
-  attachTypingCursor,
-  createIconElement,
-  findLastContentNode
+  attachTypingCursor
 } from './utils';
 
 import { defaultOptions, DEFAULT_INPUT_PLACEHOLDER, MAX_POLL_FAILURES_BEFORE_RESET } from './config/default-options';
@@ -70,6 +71,14 @@ export { deepMerge, formatTime } from './utils';
 
 // Widget instance counter for unique IDs
 let widgetInstanceCounter = 0;
+
+interface HistoryRecord {
+  role: ChatMessage["role"];
+  content: string;
+  isToolCall: boolean;
+  timestamp: Date | null;
+  messageIndex: number | null;
+}
 
 /**
  * Main ChatWidget class
@@ -118,8 +127,10 @@ export class ChatWidget {
   private consentPromptElement?: HTMLDivElement;
   private disclaimerElement?: HTMLDivElement;
   private welcomeMessageElement?: HTMLDivElement;
-  private typingIndicator?: HTMLDivElement;
   private toolActivityIndicator?: HTMLDivElement;
+  private historyRecords: HistoryRecord[] = [];
+  private typingCursor?: HTMLSpanElement;
+  private typingTarget: { wrapper: HTMLDivElement; bubble: HTMLDivElement } | null = null;
 
   /**
    * Creates a new ChatWidget instance
@@ -250,6 +261,9 @@ export class ChatWidget {
     this.isConsentGranted = !this.options.requirePrivacyConsent;
     this.hasLoadedInitialHistory = false;
     this.mockResponseIndex = 0;
+    this.historyRecords = [];
+    this.clearTypingIndicator();
+    this.deactivateToolPlaceholder();
     
     this.messageManager.clearMessages();
     this.clearMessageList();
@@ -467,6 +481,7 @@ export class ChatWidget {
     }
     
     const response = await this.service.fetchInfo();
+    const requestedOffsets = this.service.getLastRequestedOffsets();
     if (!response) {
       if (this.service.getPollFailureCount() >= MAX_POLL_FAILURES_BEFORE_RESET) {
         this.service.stopPolling();
@@ -476,7 +491,7 @@ export class ChatWidget {
         return;
       }
     } else {
-      this.processServiceResponse(response);
+      this.processServiceResponse(response, requestedOffsets ?? null);
     }
     
     // Continue polling if still awaiting response
@@ -487,34 +502,298 @@ export class ChatWidget {
     }
   }
 
-  private processServiceResponse(response: ChatServiceInfoResponse): void {
-    const history = response.history ?? [];
+  private processServiceResponse(
+    response: ChatServiceInfoResponse,
+    requestedOffsets: ChatServiceOffsets | null,
+    fullRefresh = false
+  ): void {
+    const historyEntries = response.history ?? [];
     const running = Boolean(response.running);
-    
-    if (history.length) {
-      const previousMessageCount = this.messageManager.getMessageCount();
-      this.messageManager.updateFromHistory(history);
-      const newMessageCount = this.messageManager.getMessageCount();
-      
-      // Only rebuild if messages were added/removed, otherwise update existing
-      if (newMessageCount !== previousMessageCount) {
-        this.rebuildMessageDOM();
-      } else {
-        // Update existing message content for streaming
-        this.updateExistingMessages();
-      }
+
+    if (fullRefresh) {
+      this.historyRecords = [];
+      this.messageManager.clearMessages();
+      this.clearMessageList();
     }
-    
+
+    const startHistoryIndex = requestedOffsets?.history ?? 0;
+    const firstTextOffset = requestedOffsets?.text ?? 0;
+
+    historyEntries.forEach((entry, index) => {
+      const absoluteIndex = startHistoryIndex + index;
+      const textOffset = index === 0 ? firstTextOffset : 0;
+      this.applyHistoryEntry(absoluteIndex, entry, textOffset);
+    });
+
     if (response.offsets) {
       this.service.setOffsets(response.offsets);
     }
-    
+
     this.isAwaitingAgent = running;
     this.updateSendAvailability();
-    
+
     if (!running) {
       this.service.stopPolling();
+      this.deactivateToolPlaceholder();
+      this.clearTypingIndicator();
+    } else if (this.toolActivityIndicator) {
+      this.setTypingIndicatorToPlaceholder();
+    } else {
+      this.setTypingIndicatorToLatestMessage();
     }
+
+    if (this.shouldAutoScroll) {
+      this.scrollToBottom({ smooth: true });
+    }
+  }
+
+  private applyHistoryEntry(
+    index: number,
+    entry: ChatServiceHistoryEntry,
+    textOffset: number
+  ): void {
+    const role = this.normalizeServiceRole(entry.role);
+    const rawText = entry.text ?? "";
+    const decodedText = decodeHtmlEntities(rawText);
+    const trimmedText = decodedText.trim();
+    const isToolCall = Boolean(entry.isToolCall);
+    const timestamp = entry.dateTime ? parseTimestamp(entry.dateTime) : null;
+
+    let record = this.historyRecords[index];
+    if (!record) {
+      record = {
+        role,
+        content: "",
+        isToolCall,
+        timestamp,
+        messageIndex: null,
+      };
+      this.historyRecords[index] = record;
+    } else {
+      record.role = role;
+      record.isToolCall = isToolCall;
+      if (timestamp) {
+        record.timestamp = timestamp;
+      }
+    }
+
+    if (decodedText.length > 0) {
+      record.content = this.mergeRecordContent(record.content, decodedText, textOffset);
+      record.timestamp = record.timestamp ?? new Date();
+      this.ensureHistoryMessage(record);
+      if (trimmedText.length > 0) {
+        this.deactivateToolPlaceholder();
+      }
+      if (!this.toolActivityIndicator) {
+        this.setTypingIndicatorToMessage(record.messageIndex ?? null);
+      }
+      return;
+    }
+
+    if (isToolCall && trimmedText.length === 0) {
+      this.activateToolPlaceholder();
+    }
+  }
+
+  private mergeRecordContent(existing: string, chunk: string, offset: number): string {
+    if (offset <= 0) {
+      return chunk;
+    }
+    if (offset >= existing.length) {
+      return existing + chunk;
+    }
+    return existing.slice(0, offset) + chunk;
+  }
+
+  private ensureHistoryMessage(record: HistoryRecord): void {
+    const timestamp = record.timestamp ?? new Date();
+    let messageIndex = record.messageIndex;
+
+    if (messageIndex === null && record.role === "user") {
+      const matched = this.messageManager.findLocalUserMessage(record.content);
+      if (matched !== null) {
+        messageIndex = matched;
+      }
+    }
+
+    if (messageIndex === null) {
+      const message: ChatMessage = {
+        role: record.role,
+        content: record.content,
+        timestamp,
+        status: record.role === "user" ? "sent" : undefined,
+        localOnly: false,
+      };
+      messageIndex = this.messageManager.addMessage(message);
+      this.appendMessageToDOM(message, messageIndex);
+    }
+
+    record.messageIndex = messageIndex;
+    this.messageManager.updateMessage(messageIndex, {
+      content: record.content,
+      timestamp,
+      status: record.role === "user" ? "sent" : undefined,
+      localOnly: false,
+    });
+    this.updateMessageElement(messageIndex);
+  }
+
+  private updateMessageElement(index: number): void {
+    const message = this.messageManager.getMessage(index);
+    if (!message) {
+      return;
+    }
+
+    let elements = this.messageManager.getMessageElements(index);
+    if (!elements) {
+      if (!message.content.trim()) {
+        return;
+      }
+      this.appendMessageToDOM(message, index);
+      elements = this.messageManager.getMessageElements(index);
+      if (!elements) {
+        return;
+      }
+    }
+
+    if (message.role === "agent") {
+      elements.bubble.innerHTML = renderMarkdown(message.content);
+    } else {
+      elements.bubble.innerHTML = renderPlainText(message.content);
+    }
+    elements.timestamp.textContent = formatTime(message.timestamp, this.options.locale);
+
+    if (this.typingTarget && this.typingCursor && this.typingTarget.wrapper === elements.wrapper) {
+      attachTypingCursor(elements.bubble, this.typingCursor);
+    }
+  }
+
+  private setTypingIndicatorToMessage(messageIndex: number | null): void {
+    if (this.toolActivityIndicator || messageIndex === null) {
+      return;
+    }
+    const elements = this.messageManager.getMessageElements(messageIndex);
+    if (!elements) {
+      return;
+    }
+    this.applyTypingIndicator(elements);
+  }
+
+  private setTypingIndicatorToPlaceholder(): void {
+    if (!this.toolActivityIndicator) {
+      return;
+    }
+    const bubble = this.toolActivityIndicator.querySelector<HTMLDivElement>(".acw-bubble");
+    if (!bubble) {
+      return;
+    }
+    this.applyTypingIndicator({ wrapper: this.toolActivityIndicator, bubble });
+  }
+
+  private setTypingIndicatorToLatestMessage(): void {
+    const latestMessageIndex = this.findLastAgentMessageIndex();
+    if (latestMessageIndex === null) {
+      this.clearTypingIndicator();
+      return;
+    }
+    this.setTypingIndicatorToMessage(latestMessageIndex);
+  }
+
+  private applyTypingIndicator(target: { wrapper: HTMLDivElement; bubble: HTMLDivElement }): void {
+    if (!this.typingCursor) {
+      this.typingCursor = document.createElement("span");
+      this.typingCursor.className = "acw-typing-cursor";
+    }
+
+    if (this.typingTarget && this.typingTarget.wrapper === target.wrapper) {
+      target.wrapper.classList.add("acw-typing");
+      target.bubble.classList.add("acw-bubble-typing", "acw-typing-content");
+      if (this.typingCursor.parentElement !== target.bubble) {
+        target.bubble.appendChild(this.typingCursor);
+      }
+      attachTypingCursor(target.bubble, this.typingCursor);
+      return;
+    }
+
+    this.clearTypingIndicator();
+    target.wrapper.classList.add("acw-typing");
+    target.bubble.classList.add("acw-bubble-typing", "acw-typing-content");
+    target.bubble.appendChild(this.typingCursor);
+    attachTypingCursor(target.bubble, this.typingCursor);
+    this.typingTarget = target;
+  }
+
+  private clearTypingIndicator(): void {
+    if (!this.typingTarget) {
+      return;
+    }
+    const { wrapper, bubble } = this.typingTarget;
+    wrapper.classList.remove("acw-typing");
+    bubble.classList.remove("acw-bubble-typing", "acw-typing-content");
+    if (this.typingCursor && this.typingCursor.parentElement === bubble) {
+      bubble.removeChild(this.typingCursor);
+    }
+    this.typingTarget = null;
+  }
+
+  private activateToolPlaceholder(): void {
+    if (!this.messageList) {
+      return;
+    }
+    if (this.toolActivityIndicator) {
+      this.setTypingIndicatorToPlaceholder();
+      return;
+    }
+    const placeholder = createToolActivityIndicator(this.options.texts.toolCallPlaceholder);
+    this.toolActivityIndicator = placeholder;
+
+    if (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
+      this.messageList.insertBefore(placeholder, this.disclaimerElement);
+    } else {
+      this.messageList.appendChild(placeholder);
+    }
+
+    this.scrollToBottom({ smooth: true });
+    this.setTypingIndicatorToPlaceholder();
+  }
+
+  private deactivateToolPlaceholder(): void {
+    if (!this.toolActivityIndicator) {
+      return;
+    }
+    if (this.toolActivityIndicator.parentElement) {
+      this.toolActivityIndicator.parentElement.removeChild(this.toolActivityIndicator);
+    }
+    if (this.typingTarget && this.typingTarget.wrapper === this.toolActivityIndicator) {
+      this.clearTypingIndicator();
+    }
+    this.toolActivityIndicator = undefined;
+  }
+
+  private findLastAgentMessageIndex(): number | null {
+    for (let i = this.historyRecords.length - 1; i >= 0; i -= 1) {
+      const record = this.historyRecords[i];
+      if (record && record.role === "agent" && record.messageIndex !== null) {
+        return record.messageIndex;
+      }
+    }
+
+    const messages = this.messageManager.getMessages();
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.role === "agent") {
+        return i;
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeServiceRole(role: string): ChatMessage["role"] {
+    const normalized = (role || "").toLowerCase();
+    if (normalized === "user" || normalized === "human") {
+      return "user";
+    }
+    return "agent";
   }
 
   private simulateAgentReply(): void {
@@ -551,51 +830,20 @@ export class ChatWidget {
   }
 
   private appendMessageToDOM(message: ChatMessage, index: number): void {
-    if (!this.messageList || message.isToolPlaceholder) {
+    if (!this.messageList) {
       return;
     }
     
     const elements = createMessageElement(message, this.options.locale);
     this.messageManager.setMessageElements(index, elements);
     
-    this.messageList.appendChild(elements.wrapper);
+    if (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
+      this.messageList.insertBefore(elements.wrapper, this.disclaimerElement);
+    } else {
+      this.messageList.appendChild(elements.wrapper);
+    }
     this.ensureDisclaimer();
     this.scrollToBottom({ smooth: true });
-  }
-
-  private rebuildMessageDOM(): void {
-    this.clearMessageList();
-    
-    const messages = this.messageManager.getMessages();
-    messages.forEach((message, index) => {
-      if (!message.isToolPlaceholder && message.content) {
-        this.appendMessageToDOM(message, index);
-      }
-    });
-  }
-
-  private updateExistingMessages(): void {
-    const messages = this.messageManager.getMessages();
-    messages.forEach((message, index) => {
-      if (message.isToolPlaceholder || !message.content) {
-        return;
-      }
-      
-      const elements = this.messageManager.getMessageElements(index);
-      if (elements && elements.bubble) {
-        // Update the bubble element with new text
-        const renderedContent = renderMarkdown(message.content);
-        elements.bubble.innerHTML = renderedContent;
-        
-        // Ensure scroll position is maintained
-        if (this.shouldAutoScroll) {
-          this.scrollToBottom({ smooth: true });
-        }
-      } else if (!elements) {
-        // Message doesn't have DOM elements yet, add it
-        this.appendMessageToDOM(message, index);
-      }
-    });
   }
 
   private clearMessageList(): void {
@@ -605,6 +853,9 @@ export class ChatWidget {
     this.disclaimerElement = undefined;
     this.welcomeMessageElement = undefined;
     this.consentPromptElement = undefined;
+    this.toolActivityIndicator = undefined;
+    this.typingTarget = null;
+    this.typingCursor = undefined;
   }
 
   private renderInitialState(): void {
@@ -638,7 +889,8 @@ export class ChatWidget {
     const response = await this.service.fetchInfo(true);
     if (response) {
       this.hasLoadedInitialHistory = true;
-      this.processServiceResponse(response);
+      const requestedOffsets = this.service.getLastRequestedOffsets();
+      this.processServiceResponse(response, requestedOffsets ?? null, true);
     }
   }
 
