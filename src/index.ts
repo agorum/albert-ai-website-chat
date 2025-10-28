@@ -461,7 +461,7 @@ export class ChatWidget {
       
       // Send message
       await this.service.sendMessage(content);
-      this.messageManager.updateMessage(messageIndex, { status: "sent", localOnly: false });
+      this.messageManager.updateMessage(messageIndex, { status: "sent" });
       
       // Start polling for response
       this.isAwaitingAgent = true;
@@ -540,6 +540,10 @@ export class ChatWidget {
       this.setTypingIndicatorToPlaceholder();
     } else {
       this.setTypingIndicatorToLatestMessage();
+    }
+
+    if (this.messageManager.getMessageCount() === 0) {
+      this.ensureWelcomeMessage();
     }
 
     if (this.shouldAutoScroll) {

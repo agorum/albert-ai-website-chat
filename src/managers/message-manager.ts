@@ -95,7 +95,7 @@ export class MessageManager {
    */
   findLocalUserMessage(content: string): number | null {
     const normalized = content.trim();
-    for (let index = 0; index < this.messages.length; index += 1) {
+    for (let index = this.messages.length - 1; index >= 0; index -= 1) {
       const message = this.messages[index];
       if (!message) {
         continue;
