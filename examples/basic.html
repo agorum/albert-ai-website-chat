@@ -60,10 +60,7 @@
     <script src="../dist/index.global.js" defer></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
-        const serviceEndpoint =
-          window.location.hostname === 'localhost'
-            ? 'http://localhost:8010'
-            : 'https://www.agorum.com/albert/chat';
+        const serviceEndpoint = 'http://localhost:8010';
 
         AlbertChat.init({
           serviceConfig: {

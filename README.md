@@ -35,10 +35,7 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
     <script defer src="./dist/index.global.js"></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
-        const serviceEndpoint =
-          window.location.hostname === 'localhost'
-            ? 'http://localhost:8010'
-            : 'https://www.agorum.com/albert/chat';
+        const serviceEndpoint = 'http://localhost:8010';
 
         AlbertChat.init({
           texts: {
@@ -95,10 +92,7 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
 ```ts
 import { init } from 'albert-chat-widget';
 
-const endpoint =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:8010'
-    : 'https://www.agorum.com/albert/chat';
+const endpoint = 'https://your-proxy-endpoint/albert/chat';
 
 init({
   texts: {

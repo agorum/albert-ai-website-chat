@@ -4,7 +4,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
 
-const DEFAULT_TARGET = 'https://www.agorum.com/albert/chat';
+const DEFAULT_TARGET = 'https://www.yourserver.com/albert/chat';
 const DEFAULT_PORT = 8010;
 
 const targetArg = process.argv[2];
