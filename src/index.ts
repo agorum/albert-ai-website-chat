@@ -131,6 +131,7 @@ export class ChatWidget {
   private historyRecords: HistoryRecord[] = [];
   private typingCursor?: HTMLSpanElement;
   private typingTarget: { wrapper: HTMLDivElement; bubble: HTMLDivElement } | null = null;
+  private pendingAgentPlaceholderIndex: number | null = null;
 
   /**
    * Creates a new ChatWidget instance
@@ -264,6 +265,7 @@ export class ChatWidget {
     this.historyRecords = [];
     this.clearTypingIndicator();
     this.deactivateToolPlaceholder();
+    this.pendingAgentPlaceholderIndex = null;
     
     this.messageManager.clearMessages();
     this.clearMessageList();
@@ -466,6 +468,7 @@ export class ChatWidget {
       // Start polling for response
       this.isAwaitingAgent = true;
       this.updateSendAvailability();
+      this.ensureAgentStreamingPlaceholder();
       this.pollForUpdates();
       
     } catch (error) {
@@ -536,6 +539,7 @@ export class ChatWidget {
       this.service.stopPolling();
       this.deactivateToolPlaceholder();
       this.clearTypingIndicator();
+      this.cleanupAgentPlaceholder();
     } else if (this.toolActivityIndicator) {
       this.setTypingIndicatorToPlaceholder();
     } else {
@@ -595,6 +599,9 @@ export class ChatWidget {
     }
 
     if (isToolCall && trimmedText.length === 0) {
+      if (this.pendingAgentPlaceholderIndex !== null) {
+        this.cleanupAgentPlaceholder();
+      }
       this.activateToolPlaceholder();
     }
   }
@@ -620,6 +627,11 @@ export class ChatWidget {
       }
     }
 
+    if (messageIndex === null && record.role === "agent" && this.pendingAgentPlaceholderIndex !== null) {
+      messageIndex = this.pendingAgentPlaceholderIndex;
+      this.pendingAgentPlaceholderIndex = null;
+    }
+
     if (messageIndex === null) {
       const message: ChatMessage = {
         role: record.role,
@@ -638,6 +650,7 @@ export class ChatWidget {
       timestamp,
       status: record.role === "user" ? "sent" : undefined,
       localOnly: false,
+      isStreamingPlaceholder: false,
     });
     this.updateMessageElement(messageIndex);
   }
@@ -665,6 +678,7 @@ export class ChatWidget {
     } else {
       elements.bubble.innerHTML = renderPlainText(message.content);
     }
+    elements.wrapper.classList.toggle("acw-message-streaming", Boolean(message.isStreamingPlaceholder));
     elements.timestamp.textContent = formatTime(message.timestamp, this.options.locale);
 
     if (this.typingTarget && this.typingCursor && this.typingTarget.wrapper === elements.wrapper) {
@@ -701,6 +715,49 @@ export class ChatWidget {
       return;
     }
     this.setTypingIndicatorToMessage(latestMessageIndex);
+  }
+
+  private ensureAgentStreamingPlaceholder(): void {
+    if (!this.isAwaitingAgent || this.pendingAgentPlaceholderIndex !== null) {
+      return;
+    }
+    const message: ChatMessage = {
+      role: "agent",
+      content: "\u00a0",
+      timestamp: new Date(),
+      localOnly: true,
+      isStreamingPlaceholder: true,
+    };
+    const index = this.messageManager.addMessage(message);
+    this.appendMessageToDOM(message, index);
+    this.pendingAgentPlaceholderIndex = index;
+    const elements = this.messageManager.getMessageElements(index);
+    if (elements?.bubble) {
+      elements.bubble.innerHTML = '<span class="acw-typing-placeholder">&nbsp;</span>';
+    }
+    this.setTypingIndicatorToMessage(index);
+  }
+
+  private cleanupAgentPlaceholder(): void {
+    if (this.pendingAgentPlaceholderIndex === null) {
+      return;
+    }
+    const index = this.pendingAgentPlaceholderIndex;
+    const elements = this.messageManager.getMessageElements(index);
+    if (this.typingTarget && elements && this.typingTarget.wrapper === elements.wrapper) {
+      this.clearTypingIndicator();
+    }
+    if (elements?.wrapper?.parentElement) {
+      elements.wrapper.parentElement.removeChild(elements.wrapper);
+    }
+    this.messageManager.removeMessage(index);
+    this.pendingAgentPlaceholderIndex = null;
+
+    this.historyRecords.forEach(record => {
+      if (record && record.messageIndex !== null && record.messageIndex > index) {
+        record.messageIndex -= 1;
+      }
+    });
   }
 
   private applyTypingIndicator(target: { wrapper: HTMLDivElement; bubble: HTMLDivElement }): void {
@@ -841,6 +898,10 @@ export class ChatWidget {
     const elements = createMessageElement(message, this.options.locale);
     this.messageManager.setMessageElements(index, elements);
     
+    if (message.isStreamingPlaceholder) {
+      elements.wrapper.classList.add("acw-message-streaming");
+    }
+    
     if (this.disclaimerElement && this.disclaimerElement.parentElement === this.messageList) {
       this.messageList.insertBefore(elements.wrapper, this.disclaimerElement);
     } else {
@@ -860,6 +921,7 @@ export class ChatWidget {
     this.toolActivityIndicator = undefined;
     this.typingTarget = null;
     this.typingCursor = undefined;
+    this.pendingAgentPlaceholderIndex = null;
   }
 
   private renderInitialState(): void {

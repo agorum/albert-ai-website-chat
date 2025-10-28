@@ -501,7 +501,10 @@ export function buildStyles(): string {
       color: var(--acw-agent-text-color);
     }
     .acw-typing .acw-typing-content {
-      display: block;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -514,7 +517,12 @@ export function buildStyles(): string {
       background: var(--acw-agent-text-color);
       animation: acw-typing-pulse 1s ease-in-out infinite;
       opacity: 0.75;
-      vertical-align: baseline;
+      vertical-align: middle;
+      transform: translateY(-2px);
+    }
+    .acw-typing-placeholder {
+      display: inline-block;
+      min-width: 4px;
     }
     
     /* Consent UI */

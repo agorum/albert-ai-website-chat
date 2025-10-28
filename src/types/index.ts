@@ -235,6 +235,8 @@ export interface ChatMessage {
   isToolPlaceholder?: boolean;
   /** Whether this message represents a tool call */
   isToolCall?: boolean;
+  /** Whether this is a temporary streaming placeholder bubble */
+  isStreamingPlaceholder?: boolean;
 }
 
 /**
