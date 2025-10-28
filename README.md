@@ -152,17 +152,15 @@ interface ChatWidgetOptions {
     sendButtonLabel: string;
     closeLabel: string;
     reloadLabel: string;
-    emptyState: string;
     initialMessage: string;
     consentPrompt: string;
     consentAcceptLabel: string;
     consentDeclineLabel: string;
     consentDeclinedMessage: string;
-    consentPendingPlaceholder: string;
-    consentDeclinedPlaceholder: string;
     sendWhileStreamingTooltip: string;
     sendWhileConsentPendingTooltip: string;
     sendWhileTerminatedTooltip: string;
+    toolCallPlaceholder: string;
   };
   icons: {
     headerIcon: string;

@@ -83,8 +83,6 @@ export interface ChatWidgetTexts {
   closeLabel: string;
   /** Label for the reload/restart button */
   reloadLabel: string;
-  /** Message shown when there are no messages yet */
-  emptyState: string;
   /** Initial message from the agent when chat starts */
   initialMessage: string;
   /** Privacy consent prompt text */
@@ -95,10 +93,6 @@ export interface ChatWidgetTexts {
   consentDeclineLabel: string;
   /** Message shown after declining consent */
   consentDeclinedMessage: string;
-  /** Placeholder text when waiting for consent */
-  consentPendingPlaceholder: string;
-  /** Placeholder text after consent was declined */
-  consentDeclinedPlaceholder: string;
   /** Tooltip shown when trying to send while agent is responding */
   sendWhileStreamingTooltip: string;
   /** Tooltip shown when trying to send before giving consent */

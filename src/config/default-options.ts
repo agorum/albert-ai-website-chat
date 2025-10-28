@@ -39,7 +39,6 @@ export const defaultOptions: ChatWidgetOptions = {
     sendButtonLabel: "Senden",
     closeLabel: "Schließen",
     reloadLabel: "Neu starten",
-    emptyState: "Noch keine Nachrichten.",
     initialMessage: "Hallo! Ich bin Albert. Wie kann ich Ihnen heute weiterhelfen?",
     consentPrompt:
       "Bitte stimmen Sie unserer Datenschutzerklärung zu, damit wir den Chat starten können.",
@@ -47,8 +46,6 @@ export const defaultOptions: ChatWidgetOptions = {
     consentDeclineLabel: "Ablehnen",
     consentDeclinedMessage:
       "Ohne Zustimmung zu unserer Datenschutzerklärung kann der Chat leider nicht genutzt werden.",
-    consentPendingPlaceholder: "Bitte stimmen Sie zunächst der Datenschutzerklärung zu.",
-    consentDeclinedPlaceholder: "Chat deaktiviert. Starten Sie neu, um es erneut zu versuchen.",
     sendWhileStreamingTooltip: "Bitte warten Sie, bis die Antwort abgeschlossen ist.",
     sendWhileConsentPendingTooltip:
       "Senden ist erst möglich, nachdem Sie der Datenschutzerklärung zugestimmt haben.",
@@ -113,3 +110,4 @@ export const MAX_POLL_FAILURES_BEFORE_RESET = 3;
  * Default placeholder text for the input field
  */
 export const DEFAULT_INPUT_PLACEHOLDER = "Ihre Nachricht …";
+

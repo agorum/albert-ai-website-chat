@@ -60,14 +60,11 @@ export interface ChatWidgetTexts {
   sendButtonLabel: string;
   closeLabel: string;
   reloadLabel: string;
-  emptyState: string;
   initialMessage: string;
   consentPrompt: string;
   consentAcceptLabel: string;
   consentDeclineLabel: string;
   consentDeclinedMessage: string;
-  consentPendingPlaceholder: string;
-  consentDeclinedPlaceholder: string;
   sendWhileStreamingTooltip: string;
   sendWhileConsentPendingTooltip: string;
   sendWhileTerminatedTooltip: string;
@@ -208,7 +205,6 @@ const defaultOptions: ChatWidgetOptions = {
     sendButtonLabel: "Senden",
     closeLabel: "Schließen",
     reloadLabel: "Neu starten",
-    emptyState: "Noch keine Nachrichten.",
     initialMessage: "Hallo! Ich bin Albert. Wie kann ich Ihnen heute weiterhelfen?",
     consentPrompt:
       "Bitte stimmen Sie unserer Datenschutzerklärung zu, damit wir den Chat starten können.",
@@ -216,8 +212,6 @@ const defaultOptions: ChatWidgetOptions = {
     consentDeclineLabel: "Ablehnen",
     consentDeclinedMessage:
       "Ohne Zustimmung zu unserer Datenschutzerklärung kann der Chat leider nicht genutzt werden.",
-    consentPendingPlaceholder: "Bitte stimmen Sie zunächst der Datenschutzerklärung zu.",
-    consentDeclinedPlaceholder: "Chat deaktiviert. Starten Sie neu, um es erneut zu versuchen.",
     sendWhileStreamingTooltip: "Bitte warten Sie, bis die Antwort abgeschlossen ist.",
     sendWhileConsentPendingTooltip:
       "Senden ist erst möglich, nachdem Sie der Datenschutzerklärung zugestimmt haben.",
@@ -808,16 +802,14 @@ export class ChatWidget {
     this.removeConsentPrompt();
     if (this.options.requirePrivacyConsent && !this.isConsentGranted) {
       this.renderConsentPrompt();
-      this.hideInputArea(this.options.texts.consentPendingPlaceholder);
+      this.hideInputArea();
     } else if (!this.isTerminated) {
       this.showInputArea();
       this.ensureWelcomeMessage();
       if (this.serviceConfig) {
         if (!this.hasLoadedInitialHistory) {
-          if (!this.options.welcomeMessage?.enabled) {
-            this.renderEmptyState();
-          } else {
-            this.clearMessageList();
+          this.clearMessageList();
+          if (this.options.welcomeMessage?.enabled) {
             this.ensureWelcomeMessage();
           }
           this.requestServiceInitialization();
@@ -886,22 +878,6 @@ export class ChatWidget {
   /**
    * Renders the placeholder empty-state bubble that tells the user no messages exist yet.
    */
-  private renderEmptyState(): void {
-    if (!this.messageList) {
-      return;
-    }
-    if (this.options.welcomeMessage?.enabled) {
-      this.clearMessageList();
-      this.ensureWelcomeMessage();
-      return;
-    }
-    this.clearMessageList();
-    const empty = document.createElement("div");
-    empty.className = "acw-empty-state";
-    empty.textContent = this.options.texts.emptyState;
-    this.messageList.appendChild(empty);
-  }
-
   /**
    * Removes the welcome message bubble and cancels any running typing animation for it.
    */
@@ -940,11 +916,6 @@ export class ChatWidget {
     if (!text) {
       this.removeWelcomeMessage();
       return;
-    }
-
-    const emptyState = this.messageList.querySelector(".acw-empty-state");
-    if (emptyState) {
-      emptyState.remove();
     }
 
     let bubble: HTMLDivElement | null = null;
@@ -1214,11 +1185,9 @@ export class ChatWidget {
     this.showInputArea();
     if (this.serviceConfig) {
       this.shouldAutoScroll = true;
+      this.clearMessageList();
       if (this.options.welcomeMessage?.enabled) {
-        this.clearMessageList();
         this.ensureWelcomeMessage();
-      } else {
-        this.renderEmptyState();
       }
       this.requestServiceInitialization();
     } else if (!this.messages.length && !this.options.welcomeMessage?.enabled) {
@@ -1247,7 +1216,7 @@ export class ChatWidget {
     this.isConsentGranted = false;
     this.isTerminated = true;
     this.removeConsentPrompt();
-    this.hideInputArea(this.options.texts.consentDeclinedPlaceholder);
+    this.hideInputArea();
     this.shouldAutoScroll = true;
     this.addMessage(
       {
@@ -1263,26 +1232,19 @@ export class ChatWidget {
   /**
    * Enables or disables the input area while updating the placeholder text accordingly.
    */
-  private setInputDisabled(disabled: boolean, placeholder?: string): void {
+  private setInputDisabled(disabled: boolean): void {
     if (!this.inputField) {
       return;
     }
     this.inputField.disabled = disabled;
     this.inputField.setAttribute("aria-disabled", disabled ? "true" : "false");
-    if (placeholder !== undefined) {
-      this.inputField.placeholder = placeholder;
-    } else if (!disabled) {
+    if (!disabled) {
       this.inputField.placeholder = this.inputPlaceholder;
     }
     if (disabled) {
       this.inputField.value = "";
       this.inputField.style.height = "";
       this.lastTextareaHeight = 0;
-      if (placeholder) {
-        this.inputField.value = placeholder;
-        this.adjustTextareaHeight();
-        this.inputField.value = "";
-      }
     } else {
       this.adjustTextareaHeight();
     }
@@ -1299,13 +1261,13 @@ export class ChatWidget {
   }
 
   /**
-   * Hides the input wrapper and optionally shows a placeholder message describing why.
+   * Hides the input wrapper and disables user input.
    */
-  private hideInputArea(placeholder?: string): void {
+  private hideInputArea(): void {
     if (this.inputArea) {
       this.inputArea.classList.add("acw-hidden");
     }
-    this.setInputDisabled(true, placeholder);
+    this.setInputDisabled(true);
   }
 
   /**
@@ -1859,13 +1821,6 @@ export class ChatWidget {
         scrollbar-width: thin;
         scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
         scrollbar-gutter: stable both-edges;
-      }
-      .acw-empty-state {
-        margin: auto;
-        color: rgba(15, 23, 42, 0.6);
-        font-size: 0.9rem;
-        text-align: center;
-        padding: var(--acw-spacing-md);
       }
       .acw-message {
         display: flex;
@@ -2654,10 +2609,6 @@ export class ChatWidget {
     if (!this.messageList) {
       return null;
     }
-    if (this.messageList.querySelector(".acw-empty-state")) {
-      this.clearMessageList();
-    }
-
     let elements:
       | { wrapper: HTMLDivElement; bubble: HTMLDivElement; timestamp: HTMLSpanElement }
       | null = null;
@@ -3985,7 +3936,9 @@ export class ChatWidget {
       this.messageElements = [];
       this.historyContents = [];
       this.clearMessageList();
-      this.renderEmptyState();
+      if (this.options.welcomeMessage?.enabled) {
+        this.ensureWelcomeMessage();
+      }
     }
     this.ensureDisclaimer();
     if (!this.isTerminated) {

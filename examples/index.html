@@ -60,6 +60,8 @@
           serviceConfig: {
             endpoint: serviceEndpoint,
             preset: 'albert',
+            pollIntervalMs: 500,
+            storageKey: 'albert-chat-session-id',
           },
           theme: {
             fontFamily: "'Inter', system-ui, sans-serif",
@@ -81,28 +83,26 @@
           },
           texts: {
             launcherLabel: 'Frag Albert',
-            launcherAriaLabel: 'Albert Chat öffnen',
-            teaserText: '👋 Benötigen Sie Unterstützung?',
+            launcherAriaLabel: 'Albert Chat oeffnen',
+            teaserText: 'Hallo! Brauchen Sie Hilfe?',
             headerTitle: 'Albert AI Assistent',
             headerSubtitle: 'Wir helfen gerne weiter',
             sendButtonLabel: 'Senden',
-            closeLabel: 'Fenster schließen',
+            closeLabel: 'Fenster schliessen',
             reloadLabel: 'Neu starten',
-            emptyState: 'Noch keine Nachrichten vorhanden.',
-            initialMessage: 'Hallo! Schön, dass Sie da sind. Welche Frage kann ich beantworten?',
+            initialMessage: 'Hallo! Schoen, dass Sie da sind. Welche Frage kann ich beantworten?',
             consentPrompt:
-              'Bevor wir beginnen, lesen Sie bitte unsere Datenschutzhinweise und bestätigen Ihre Zustimmung.',
+              'Bevor wir beginnen, lesen Sie bitte unsere Datenschutzhinweise und bestaetigen Ihre Zustimmung.',
             consentAcceptLabel: 'Zustimmen',
             consentDeclineLabel: 'Ablehnen',
             consentDeclinedMessage:
-              'Ohne Zustimmung zu unseren Datenschutzhinweisen ist der Chat leider nicht verfügbar.',
-            consentPendingPlaceholder: 'Bitte stimmen Sie der Datenschutzerklärung zu, um den Chat zu starten.',
-            consentDeclinedPlaceholder: 'Chat deaktiviert – starten Sie neu, um es erneut zu versuchen.',
-            sendWhileStreamingTooltip: 'Bitte warten, bis die aktuelle Antwort vollständig ist.',
+              'Ohne Zustimmung zu unseren Datenschutzhinweisen ist der Chat leider nicht verfuegbar.',
+            sendWhileStreamingTooltip: 'Bitte warten, bis die aktuelle Antwort vollstaendig ist.',
             sendWhileConsentPendingTooltip:
-              'Sie können erst senden, nachdem Sie der Datenschutzerklärung zugestimmt haben.',
+              'Sie koennen erst senden, nachdem Sie der Datenschutzerklaerung zugestimmt haben.',
             sendWhileTerminatedTooltip:
               'Der Chat ist deaktiviert. Starten Sie ihn neu, um eine neue Sitzung zu beginnen.',
+            toolCallPlaceholder: 'Ich recherchiere das kurz fuer Sie ...',
           },
           icons: {
             headerIcon: '🤖',
@@ -131,8 +131,29 @@
           zIndex: 12000,
           locale: 'de-DE',
           requirePrivacyConsent: true,
+          welcomeMessage: {
+            enabled: true,
+            text: 'Hallo! Ich bin Albert. Wie kann ich Sie heute unterstuetzen?',
+            className: 'acw-welcome-highlight',
+            styles: {
+              background: '#e0f2fe',
+              color: '#0f172a',
+              fontWeight: '600',
+            },
+          },
+          disclaimer: {
+            enabled: true,
+            text: 'Hinweis: Albert kann sich irren. Bitte pruefen Sie wichtige Informationen nach.',
+            className: 'acw-disclaimer-note',
+            styles: {
+              fontSize: '0.78rem',
+              color: 'rgba(15, 23, 42, 0.65)',
+              marginTop: '12px',
+            },
+          },
         });
       });
     </script>
   </body>
 </html>
+
