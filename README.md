@@ -257,12 +257,6 @@ server {
 
 Once the proxy is live, point the widget’s `serviceConfig.endpoint` to the public `/albert/chat/` location on your nginx host. The widget will forward all chat requests through the secure proxy to ALBERT \| AI.
 
-## Roadmap Ideas
-
-- Connect the widget to real REST endpoints (e.g., replace the mock reply pipeline)
-- Extend the state management once live responses are delivered by the backend
-- Optional: add richer typing indicators, offline handling, or a full localization layer
-
 ## Local Test Server
 
 ```bash
