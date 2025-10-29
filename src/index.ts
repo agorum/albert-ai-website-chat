@@ -1065,6 +1065,14 @@ export class ChatWidget {
       this.hasLoadedInitialHistory = true;
       const requestedOffsets = this.service.getLastRequestedOffsets();
       this.processServiceResponse(response, requestedOffsets ?? null, true);
+      if (this.isAwaitingAgent) {
+        this.service.scheduleNextPoll(undefined, () => {
+          if (version !== this.conversationVersion) {
+            return;
+          }
+          void this.pollForUpdates();
+        });
+      }
     }
   }
 
