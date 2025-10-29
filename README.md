@@ -1,6 +1,6 @@
 ﻿# ALBERT \| AI Chat Widget
 
-A configurable chat widget that can be embedded into any website with a single script tag. This chat component is designed to work hand in hand with ALBERT \| AI so you can bring an AI-driven service to your own siteâ€”ranging from classic conversations to sophisticated agentic workflows that leverage tool calls and MCP integrations for sales, customer support, order tracking, and more. Further information about the ALBERT \| AI ecosystem is available at https://www.agorum.com/albert-ki-universum.
+A configurable chat widget that can be embedded into any website with a single script tag. This chat component is designed to work hand in hand with ALBERT \| AI so you can bring an AI-driven service to your own site ”ranging from classic conversations to sophisticated agentic workflows that leverage tool calls and MCP integrations for sales, customer support, order tracking, and more. Further information about the ALBERT \| AI ecosystem is available at https://www.agorum.com/albert-ki-universum.
 
 The project is written in TypeScript, renders inside a Shadow DOM, and currently ships with mock responses so it can run without a backend. A REST integration can be added later.
 
@@ -14,6 +14,7 @@ The project is written in TypeScript, renders inside a Shadow DOM, and currently
 - Input area with auto-resizing textarea (up to 5 lines), Enter-to-send, and a send button
 - Simulated agent with typing indicator and streamed responses using randomized delays
 - Optional privacy consent flow before the first message is sent
+- Remembers its open/closed state across page navigation for a seamless user experience
 - TypeScript types plus ESM and IIFE bundles for modern build setups or classic script tags
 
 ## Installation
@@ -523,6 +524,12 @@ server {
 		}
 	}
 }
+```
+
+chat-token.conf
+
+```nginx
+set $chat_bearer_token "Bearer YOUR_TOKEN";
 ```
 
 - `include /etc/nginx/snippets/chat-token.conf;` loads a snippet that defines the `$chat_bearer_token` variable with the JWT you generated in step 4.

@@ -117,6 +117,10 @@ export class ChatWidget {
   private shouldAutoScroll = true;
   private hasLoadedInitialHistory = false;
   private readonly eventHandlers: ChatWidgetEvents;
+
+  // Persistence
+  private storage: Storage | null = null;
+  private readonly openStateKey: string;
   
   // Service and managers
   private service: ChatService;
@@ -147,6 +151,8 @@ export class ChatWidget {
     this.instanceId = ++widgetInstanceCounter;
     this.isConsentGranted = !this.options.requirePrivacyConsent;
     this.eventHandlers = { ...(this.options.events ?? {}) };
+    this.storage = this.resolveStorage();
+    this.openStateKey = this.buildOpenStateKey();
     
     // Initialize service and managers
     this.service = new ChatService(this.options.serviceConfig);
@@ -188,8 +194,11 @@ export class ChatWidget {
     this.registerEventListeners();
     this.startTeaserCountdown();
     this.renderInitialState();
-    this.updateLauncherLabel();
-    this.updateDimensions();
+    const restored = this.restoreOpenState();
+    if (!restored) {
+      this.updateLauncherLabel();
+      this.updateDimensions();
+    }
     this.emitEvent("onReady");
   }
 
@@ -241,6 +250,7 @@ export class ChatWidget {
     this.hideTeaser();
     this.shouldAutoScroll = true;
     this.scrollToBottom({ force: true });
+    this.persistOpenState(true);
     this.updateDimensions();
     this.updateLauncherLabel();
     this.emitEvent("onOpen");
@@ -258,6 +268,7 @@ export class ChatWidget {
     this.chatWindow.classList.remove("acw-open");
     this.launcherButton.setAttribute("aria-expanded", "false");
     this.chatWindow.setAttribute("aria-hidden", "true");
+    this.persistOpenState(false);
     this.updateLauncherLabel();
     this.emitEvent("onClose");
   }
@@ -1227,6 +1238,55 @@ export class ChatWidget {
     }
   }
 
+  private resolveStorage(): Storage | null {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    try {
+      const storage = window.localStorage;
+      const testKey = `acw-storage-test-${this.instanceId}`;
+      storage.setItem(testKey, "1");
+      storage.removeItem(testKey);
+      return storage;
+    } catch (error) {
+      console.warn("ALBERT | AI Chat: localStorage is not accessible.", error);
+      return null;
+    }
+  }
+
+  private buildOpenStateKey(): string {
+    const base = this.options.serviceConfig?.storageKey ?? "albert-chat-session-id";
+    const normalized = base.replace(/\s+/g, "-").toLowerCase();
+    return `acw-open-state-${this.instanceId}-${normalized}`;
+  }
+
+  private persistOpenState(isOpen: boolean): void {
+    if (!this.storage) {
+      return;
+    }
+    try {
+      this.storage.setItem(this.openStateKey, isOpen ? "1" : "0");
+    } catch (error) {
+      console.warn("ALBERT | AI Chat: Failed to persist open state.", error);
+    }
+  }
+
+  private restoreOpenState(): boolean {
+    if (!this.storage || this.isOpen) {
+      return false;
+    }
+    try {
+      const value = this.storage.getItem(this.openStateKey);
+      if (value === "1" || value === "true") {
+        this.open();
+        return true;
+      }
+    } catch (error) {
+      console.warn("ALBERT | AI Chat: Failed to read open state.", error);
+    }
+    return false;
+  }
+
   private updateLauncherLabel(): void {
     if (!this.launcherButton || !this.launcherLabelElement) {
       return;
@@ -1238,10 +1298,12 @@ export class ChatWidget {
       launcherOpenAriaLabel,
     } = this.options.texts;
     const isOpen = this.isOpen;
-    const visualLabel = isOpen ? launcherOpenLabel : launcherLabel;
-    const ariaLabel = isOpen
-      ? launcherOpenAriaLabel || launcherOpenLabel || launcherAriaLabel || launcherLabel
-      : launcherAriaLabel || launcherLabel;
+    const baseLabel = launcherLabel ?? "";
+    const openLabel = launcherOpenLabel || baseLabel;
+    const visualLabel = isOpen ? openLabel : baseLabel;
+    const baseAriaLabel = launcherAriaLabel || baseLabel;
+    const openAriaLabel = launcherOpenAriaLabel || launcherOpenLabel || baseAriaLabel;
+    const ariaLabel = isOpen ? openAriaLabel : baseAriaLabel;
 
     this.launcherLabelElement.textContent = visualLabel;
     this.launcherButton.setAttribute("aria-label", ariaLabel);
