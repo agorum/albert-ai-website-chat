@@ -651,21 +651,22 @@ export function buildStyles(): string {
         inset: 0;
         width: 100vw;
         height: 100vh;
-        gap: 0;
-        align-items: stretch;
-        justify-content: flex-start;
-        background: var(--acw-chat-background);
-        padding-bottom: env(safe-area-inset-bottom, 0px);
-        overflow: hidden;
-      }
-      .acw-container.acw-container-open .acw-chat {
-        width: 100%;
-        height: calc(100% - env(safe-area-inset-bottom, 0px));
-        max-height: none;
-        border-radius: 0;
-        border: none;
-        box-shadow: none;
-      }
+      gap: 0;
+      align-items: stretch;
+      justify-content: flex-start;
+      background: var(--acw-chat-background);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+      overflow: visible;
+    }
+    .acw-container.acw-container-open .acw-chat {
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+      margin-bottom: env(safe-area-inset-bottom, 0px);
+    }
       .acw-container.acw-container-open .acw-launcher,
       .acw-container.acw-container-open .acw-teaser {
         display: none;
