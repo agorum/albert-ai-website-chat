@@ -42,7 +42,7 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
         AlbertChat.init({
           target: document.body,
           serviceConfig: {
-            endpoint: 'http://10.0.1.86:8010',
+            endpoint: serviceEndpoint,
             preset: 'albert',
             title: 'ALBERT Support Session',
             pollIntervalMs: 500,
@@ -144,7 +144,7 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
           },
           icons: {
             headerIcon: './assets/agorum-logo.svg',
-            closeIcon: '\u2716',
+            closeIcon: '\u2715',
             reloadIcon: '\u21bb',
             launcherIcon: '\u{1f4ac}',
             sendIcon: '\u27a4',
@@ -428,32 +428,94 @@ When you are ready to connect the widget to your ALBERT \| AI backend (for examp
 Below is an example nginx configuration that secures the chat endpoint and forwards requests to the ALBERT \| AI chat service:
 
 ```nginx
+# Define rate limiting zone for the Albert AI chat initialization endpoint.
+# This prevents excessive requests from a single client IP and helps protect against abuse (DoS attacks).
+limit_req_zone $binary_remote_addr zone=albert_init_limit:10m rate=10r/m;
+
+# Map HTTP Origin headers to a flag indicating if the origin is allowed or not.
+# Used for CORS (Cross-Origin Resource Sharing) validation to restrict browser-based access.
+map $http_origin $invalid_origin {
+    "" 0;                                       # No Origin header – treat as valid (assume non-browser client)
+    "https://www.yourwebsite.com" 0;            # Only allow requests from this website
+    default 1;                                  # All other origins are considered invalid
+}
+
 server {
-	listen 443 ssl http2;
+	listen 443 ssl http2; # Enable HTTPS with HTTP/2 support for better performance
 
-	# ALBERT | AI chat proxy
+	# Include external configuration for the chat Bearer token (used for authentication/authorization).
 	include /etc/nginx/snippets/chat-token.conf;
-	location /albert/chat/ {
-		# Restrict access from your website
-		if ($http_origin != "https://www.yourwebsite.com") { return 403; }
-		if ($host != "www.yourwebsite.com") { return 403; }
 
-		proxy_pass https://your-agorum-core-server/api/rest/custom/agorum.ai.service.chat/;
+	# Endpoint for Albert AI chat session initialization
+	location /albert/chat/init {
+		# Apply rate limiting:
+		# - Allow up to 10 quick requests per user
+		# - If the limit is exceeded, further requests are rejected with HTTP 429 (Too Many Requests)
+		# - After the burst is used, new requests are allowed at 10 requests per minute
+		limit_req zone=albert_init_limit burst=10 nodelay;
+		limit_req_status 429;
 
-		proxy_set_header Host your-agorum-core-server;
+		# Restrict access based on the Origin header (CORS): block any request with an invalid origin
+		if ($invalid_origin = 1) {
+			return 403; # Forbidden – CORS policy violation
+		}
+
+		# Enforce access only through the specified domain for additional security (virtual hosting)
+		if ($host != "www.agorum.com") { return 403; }
+
+		# Forward incoming requests to the upstream Albert AI server
+		proxy_pass https://your-albert-ai-server/api/rest/custom/agorum.ai.service.chat/init;
+
+		# Set incoming request headers expected by the backend service
+		proxy_set_header Host d4w.agorum.com;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_set_header X-Forwarded-Proto $scheme;
 
-		# Add Bearer-Token of agorum core user
+		# Attach dynamic Bearer token for downstream authentication (defined in included snippet)
 		proxy_set_header Authorization $chat_bearer_token;
 
-		# Optional: strict CORS-Window for browser calls
+		# Set strict CORS headers on all responses to allow only specific browser origins and HTTP methods
 		add_header Access-Control-Allow-Origin "https://www.yourwebsite.com" always;
 		add_header Access-Control-Allow-Headers "Authorization,Content-Type" always;
 		add_header Access-Control-Allow-Methods "GET,POST,PUT,DELETE,OPTIONS" always;
 
-		# Answer Preflight requests
+		# Handle browser CORS preflight requests (OPTIONS method)
+		if ($request_method = OPTIONS) {
+			add_header Content-Length 0;
+			add_header Content-Type text/plain;
+			return 204; # Success – no content
+		}
+	}
+
+	# Endpoint for general Albert AI chat API calls (not limited to initialization)
+	location /albert/chat/ {
+		# Restrict access based on the Origin header (CORS): block requests with invalid origins
+		if ($invalid_origin = 1) {
+			return 403;
+		}
+
+		# Enforce that the requests originate from the specified host
+		if ($host != "www.agorum.com") { return 403; }
+
+		# Forward incoming requests to the upstream Albert AI backend
+		proxy_pass https://your-albert-ai-server/api/rest/custom/agorum.ai.service.chat/;
+
+		# Set upstream headers for user identification and protocol information
+		proxy_set_header Host d4w.agorum.com;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+
+		# Attach chat Bearer token for backend authorization
+		proxy_set_header Authorization $chat_bearer_token;
+
+		# Apply strict CORS headers as above
+		add_header Access-Control-Allow-Origin "https://www.yourwebsite.com" always;
+		add_header Access-Control-Allow-Headers "Authorization,Content-Type" always;
+		add_header Access-Control-Allow-Methods "GET,POST,PUT,DELETE,OPTIONS" always;
+
+		# Respond properly to browser CORS preflight requests
 		if ($request_method = OPTIONS) {
 			add_header Content-Length 0;
 			add_header Content-Type text/plain;
