@@ -214,7 +214,7 @@ Set `texts.inputPlaceholder` if you want to change the message input placeholder
 
 Limit desktop layouts with `dimensions.maxWidthPx` while mobile viewports continue to open fullscreen.
 
-Hook into lifecycle changes with `events.onReady`, `events.onOpen`, and `events.onClose`.
+Hook into lifecycle changes with events.onReady, events.onOpen, and events.onClose.\n\nAdjust idle and hover states via the new theme colors for the launcher, send, and consent buttons. Switch the launcher caption while open with 	exts.launcherOpenLabel.
 
 ## Usage with Bundlers (ESM)
 
@@ -295,6 +295,9 @@ interface ChatWidgetOptions {
 
     sendButtonBackgroundColor: string;
     sendButtonTextColor: string;
+    sendButtonShadowColor: string;
+    sendButtonHoverBackgroundColor: string;
+    sendButtonHoverTextColor: string;
     sendButtonHoverShadowColor: string;
     sendButtonFocusOutlineColor: string;
 
@@ -302,6 +305,8 @@ interface ChatWidgetOptions {
     launcherTextColor: string;
     launcherShadowColor: string;
     launcherHoverShadowColor: string;
+    launcherHoverBackgroundColor: string;
+    launcherHoverTextColor: string;
     launcherFocusOutlineColor: string;
 
     teaserBackgroundColor: string;
@@ -315,12 +320,17 @@ interface ChatWidgetOptions {
 
     consentAcceptBackgroundColor: string;
     consentAcceptTextColor: string;
+    consentAcceptShadowColor: string;
+    consentAcceptHoverBackgroundColor: string;
+    consentAcceptHoverTextColor: string;
     consentAcceptHoverShadowColor: string;
     consentAcceptFocusOutlineColor: string;
     consentDeclineTextColor: string;
     consentDeclineBackgroundColor: string;
     consentDeclineBorderColor: string;
+    consentDeclineShadowColor: string;
     consentDeclineHoverBackgroundColor: string;
+    consentDeclineHoverTextColor: string;
     consentDeclineHoverShadowColor: string;
     consentDeclineFocusOutlineColor: string;
 
@@ -332,10 +342,12 @@ interface ChatWidgetOptions {
       showTeaserBorder: boolean;
       showInputDivider: boolean;
       showScrollbar: boolean;
-    };
+  };
   texts: {
     launcherLabel: string;
+    launcherOpenLabel: string;
     launcherAriaLabel: string;
+    launcherOpenAriaLabel: string;
     teaserText: string;
     headerTitle: string;
     headerSubtitle: string;
@@ -467,6 +479,8 @@ npm run build
 ```
 
 The demo becomes available at `http://localhost:8080/index.html`. You can pass a different directory to the script, for example `./start.sh public`.
+
+
 
 
 

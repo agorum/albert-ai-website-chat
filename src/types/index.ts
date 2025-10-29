@@ -107,6 +107,12 @@ export interface ChatWidgetTheme {
   sendButtonBackgroundColor: string;
   /** Text/icon color for the send button */
   sendButtonTextColor: string;
+  /** Shadow color for the idle state of the send button */
+  sendButtonShadowColor: string;
+  /** Background color for the send button hover state */
+  sendButtonHoverBackgroundColor: string;
+  /** Text/icon color for the send button hover state */
+  sendButtonHoverTextColor: string;
   /** Shadow color for the send button hover state */
   sendButtonHoverShadowColor: string;
   /** Outline color for the send button focus state */
@@ -119,6 +125,10 @@ export interface ChatWidgetTheme {
   launcherShadowColor: string;
   /** Shadow color for the launcher button hover state */
   launcherHoverShadowColor: string;
+  /** Background color for the launcher button on hover */
+  launcherHoverBackgroundColor: string;
+  /** Text/icon color for the launcher button on hover */
+  launcherHoverTextColor: string;
   /** Outline color for the launcher button focus state */
   launcherFocusOutlineColor: string;
   /** Background color for the teaser bubble */
@@ -139,6 +149,12 @@ export interface ChatWidgetTheme {
   consentAcceptBackgroundColor: string;
   /** Text color for the consent accept button */
   consentAcceptTextColor: string;
+  /** Shadow color for the consent accept button */
+  consentAcceptShadowColor: string;
+  /** Background color for the consent accept button on hover */
+  consentAcceptHoverBackgroundColor: string;
+  /** Text color for the consent accept button on hover */
+  consentAcceptHoverTextColor: string;
   /** Shadow color for the consent accept hover state */
   consentAcceptHoverShadowColor: string;
   /** Outline color for the consent accept focus state */
@@ -149,8 +165,12 @@ export interface ChatWidgetTheme {
   consentDeclineBackgroundColor: string;
   /** Border color for the consent decline button */
   consentDeclineBorderColor: string;
+  /** Shadow color for the consent decline button */
+  consentDeclineShadowColor: string;
   /** Background color for the consent decline hover state */
   consentDeclineHoverBackgroundColor: string;
+  /** Text color for the consent decline button on hover */
+  consentDeclineHoverTextColor: string;
   /** Shadow color for the consent decline hover state */
   consentDeclineHoverShadowColor: string;
   /** Outline color for the consent decline focus state */
@@ -179,8 +199,12 @@ export interface ChatWidgetTheme {
 export interface ChatWidgetTexts {
   /** Text shown on the launcher button */
   launcherLabel: string;
+  /** Text shown on the launcher button when the chat is open */
+  launcherOpenLabel: string;
   /** ARIA label for the launcher button (accessibility) */
   launcherAriaLabel: string;
+  /** ARIA label for the launcher button when the chat is open */
+  launcherOpenAriaLabel: string;
   /** Text shown in the teaser bubble before opening chat */
   teaserText: string;
   /** Title shown in the chat header */

@@ -98,6 +98,7 @@ export class ChatWidget {
   private container!: HTMLDivElement;
   private chatWindow!: HTMLDivElement;
   private launcherButton!: HTMLButtonElement;
+  private launcherLabelElement: HTMLSpanElement | null = null;
   private teaserBubble!: HTMLButtonElement;
   private messageList!: HTMLDivElement;
   private inputArea!: HTMLDivElement;
@@ -185,8 +186,9 @@ export class ChatWidget {
     }
 
     this.registerEventListeners();
-  	this.startTeaserCountdown();
+    this.startTeaserCountdown();
     this.renderInitialState();
+    this.updateLauncherLabel();
     this.updateDimensions();
     this.emitEvent("onReady");
   }
@@ -200,7 +202,10 @@ export class ChatWidget {
 
     if (this.isOpen) {
       this.isOpen = false;
+      this.updateLauncherLabel();
       this.emitEvent("onClose");
+    } else {
+      this.updateLauncherLabel();
     }
     
     window.removeEventListener("resize", this.handleWindowResize);
@@ -237,6 +242,7 @@ export class ChatWidget {
     this.shouldAutoScroll = true;
     this.scrollToBottom({ force: true });
     this.updateDimensions();
+    this.updateLauncherLabel();
     this.emitEvent("onOpen");
   }
 
@@ -252,6 +258,7 @@ export class ChatWidget {
     this.chatWindow.classList.remove("acw-open");
     this.launcherButton.setAttribute("aria-expanded", "false");
     this.chatWindow.setAttribute("aria-hidden", "true");
+    this.updateLauncherLabel();
     this.emitEvent("onClose");
   }
 
@@ -325,6 +332,8 @@ export class ChatWidget {
     container.appendChild(this.teaserBubble);
 
     this.launcherButton = createLauncherButton(this.options, this.instanceId);
+    this.launcherLabelElement =
+      this.launcherButton.querySelector<HTMLSpanElement>(".acw-launcher-label");
     container.appendChild(this.launcherButton);
 
     return container;
@@ -1216,6 +1225,26 @@ export class ChatWidget {
         error
       );
     }
+  }
+
+  private updateLauncherLabel(): void {
+    if (!this.launcherButton || !this.launcherLabelElement) {
+      return;
+    }
+    const {
+      launcherLabel,
+      launcherOpenLabel,
+      launcherAriaLabel,
+      launcherOpenAriaLabel,
+    } = this.options.texts;
+    const isOpen = this.isOpen;
+    const visualLabel = isOpen ? launcherOpenLabel : launcherLabel;
+    const ariaLabel = isOpen
+      ? launcherOpenAriaLabel || launcherOpenLabel || launcherAriaLabel || launcherLabel
+      : launcherAriaLabel || launcherLabel;
+
+    this.launcherLabelElement.textContent = visualLabel;
+    this.launcherButton.setAttribute("aria-label", ariaLabel);
   }
 
   private showInputArea(): void {

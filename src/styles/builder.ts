@@ -50,7 +50,8 @@ export function buildStyles(): string {
       font-weight: 600;
       cursor: pointer;
       box-shadow: 0 10px 30px var(--acw-launcher-shadow);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
+        color 0.2s ease;
       font-size: 0.95rem;
     }
     .acw-launcher:focus-visible {
@@ -59,6 +60,8 @@ export function buildStyles(): string {
     }
     .acw-launcher:hover {
       transform: translateY(-1px);
+      background: var(--acw-launcher-hover-background);
+      color: var(--acw-launcher-hover-text-color);
       box-shadow: 0 12px 32px var(--acw-launcher-hover-shadow);
     }
     .acw-launcher-icon {
@@ -376,10 +379,14 @@ export function buildStyles(): string {
       height: 46px;
       cursor: pointer;
       min-height: 46px;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 24px var(--acw-send-button-shadow);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
+        color 0.2s ease;
     }
     .acw-send-button:hover:not(:disabled) {
       transform: translateY(-1px);
+      background: var(--acw-send-button-hover-background);
+      color: var(--acw-send-button-hover-text-color);
       box-shadow: 0 10px 24px var(--acw-send-button-hover-shadow);
     }
     .acw-send-button:focus-visible {
@@ -570,7 +577,8 @@ export function buildStyles(): string {
       font-weight: 600;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
+        border-color 0.2s ease, color 0.2s ease;
     }
     .acw-consent-button:focus-visible {
       outline: 2px solid transparent;
@@ -579,9 +587,12 @@ export function buildStyles(): string {
     .acw-consent-accept {
       background: var(--acw-consent-accept-background);
       color: var(--acw-consent-accept-text-color);
+      box-shadow: 0 10px 24px var(--acw-consent-accept-shadow);
     }
     .acw-consent-accept:hover {
       transform: translateY(-1px);
+      background: var(--acw-consent-accept-hover-background);
+      color: var(--acw-consent-accept-hover-text-color);
       box-shadow: 0 10px 24px var(--acw-consent-accept-hover-shadow);
     }
     .acw-consent-accept:focus-visible {
@@ -591,9 +602,11 @@ export function buildStyles(): string {
       background: var(--acw-consent-decline-background);
       color: var(--acw-consent-decline-text-color);
       border-color: var(--acw-consent-decline-border-color);
+      box-shadow: 0 10px 24px var(--acw-consent-decline-shadow);
     }
     .acw-consent-decline:hover {
       background: var(--acw-consent-decline-hover-background);
+      color: var(--acw-consent-decline-hover-text-color);
       transform: translateY(-1px);
       box-shadow: 0 10px 24px var(--acw-consent-decline-hover-shadow);
     }
@@ -698,12 +711,17 @@ export function generateThemeVariables(theme: ChatWidgetTheme, zIndex: number): 
     "--acw-input-divider-color": theme.inputDividerColor,
     "--acw-send-button-background": theme.sendButtonBackgroundColor,
     "--acw-send-button-text-color": theme.sendButtonTextColor,
+    "--acw-send-button-shadow": theme.sendButtonShadowColor,
+    "--acw-send-button-hover-background": theme.sendButtonHoverBackgroundColor,
+    "--acw-send-button-hover-text-color": theme.sendButtonHoverTextColor,
     "--acw-send-button-hover-shadow": theme.sendButtonHoverShadowColor,
     "--acw-send-button-focus-outline": theme.sendButtonFocusOutlineColor,
     "--acw-launcher-background": theme.launcherBackgroundColor,
     "--acw-launcher-text-color": theme.launcherTextColor,
     "--acw-launcher-shadow": theme.launcherShadowColor,
     "--acw-launcher-hover-shadow": theme.launcherHoverShadowColor,
+    "--acw-launcher-hover-background": theme.launcherHoverBackgroundColor,
+    "--acw-launcher-hover-text-color": theme.launcherHoverTextColor,
     "--acw-launcher-focus-outline": theme.launcherFocusOutlineColor,
     "--acw-teaser-background": theme.teaserBackgroundColor,
     "--acw-teaser-text-color": theme.teaserTextColor,
@@ -714,12 +732,17 @@ export function generateThemeVariables(theme: ChatWidgetTheme, zIndex: number): 
     "--acw-footer-link-hover-color": theme.footerLinkHoverColor,
     "--acw-consent-accept-background": theme.consentAcceptBackgroundColor,
     "--acw-consent-accept-text-color": theme.consentAcceptTextColor,
+    "--acw-consent-accept-shadow": theme.consentAcceptShadowColor,
+    "--acw-consent-accept-hover-background": theme.consentAcceptHoverBackgroundColor,
+    "--acw-consent-accept-hover-text-color": theme.consentAcceptHoverTextColor,
     "--acw-consent-accept-hover-shadow": theme.consentAcceptHoverShadowColor,
     "--acw-consent-accept-focus-outline": theme.consentAcceptFocusOutlineColor,
     "--acw-consent-decline-text-color": theme.consentDeclineTextColor,
     "--acw-consent-decline-background": theme.consentDeclineBackgroundColor,
     "--acw-consent-decline-border-color": theme.consentDeclineBorderColor,
+    "--acw-consent-decline-shadow": theme.consentDeclineShadowColor,
     "--acw-consent-decline-hover-background": theme.consentDeclineHoverBackgroundColor,
+    "--acw-consent-decline-hover-text-color": theme.consentDeclineHoverTextColor,
     "--acw-consent-decline-hover-shadow": theme.consentDeclineHoverShadowColor,
     "--acw-consent-decline-focus-outline": theme.consentDeclineFocusOutlineColor,
     "--acw-disclaimer-text-color": theme.disclaimerTextColor,
