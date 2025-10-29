@@ -588,12 +588,14 @@ export function buildStyles(): string {
       outline: 2px solid var(--acw-consent-accept-focus-outline);
     }
     .acw-consent-decline {
-      background: transparent;
+      background: var(--acw-consent-decline-background);
       color: var(--acw-consent-decline-text-color);
       border-color: var(--acw-consent-decline-border-color);
     }
     .acw-consent-decline:hover {
       background: var(--acw-consent-decline-hover-background);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px var(--acw-consent-decline-hover-shadow);
     }
     .acw-consent-decline:focus-visible {
       outline: 2px solid var(--acw-consent-decline-focus-outline);
@@ -715,8 +717,10 @@ export function generateThemeVariables(theme: ChatWidgetTheme, zIndex: number): 
     "--acw-consent-accept-hover-shadow": theme.consentAcceptHoverShadowColor,
     "--acw-consent-accept-focus-outline": theme.consentAcceptFocusOutlineColor,
     "--acw-consent-decline-text-color": theme.consentDeclineTextColor,
+    "--acw-consent-decline-background": theme.consentDeclineBackgroundColor,
     "--acw-consent-decline-border-color": theme.consentDeclineBorderColor,
     "--acw-consent-decline-hover-background": theme.consentDeclineHoverBackgroundColor,
+    "--acw-consent-decline-hover-shadow": theme.consentDeclineHoverShadowColor,
     "--acw-consent-decline-focus-outline": theme.consentDeclineFocusOutlineColor,
     "--acw-disclaimer-text-color": theme.disclaimerTextColor,
     "--acw-chat-border-width": theme.showChatBorder ? "1px" : "0",

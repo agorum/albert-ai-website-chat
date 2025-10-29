@@ -145,10 +145,14 @@ export interface ChatWidgetTheme {
   consentAcceptFocusOutlineColor: string;
   /** Text color for the consent decline button */
   consentDeclineTextColor: string;
+  /** Background color for the consent decline button */
+  consentDeclineBackgroundColor: string;
   /** Border color for the consent decline button */
   consentDeclineBorderColor: string;
   /** Background color for the consent decline hover state */
   consentDeclineHoverBackgroundColor: string;
+  /** Shadow color for the consent decline hover state */
+  consentDeclineHoverShadowColor: string;
   /** Outline color for the consent decline focus state */
   consentDeclineFocusOutlineColor: string;
   /** Text color for disclaimers */
