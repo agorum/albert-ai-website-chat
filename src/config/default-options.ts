@@ -142,6 +142,10 @@ export const defaultOptions: ChatWidgetOptions = {
     heightPercent: 70,
     minHeightPx: 420,
   },
+  position: {
+    bottomOffsetPx: 24,
+    rightOffsetPx: 24,
+  },
   teaserDelayMs: 10000,
   mockResponses: [
     "Thanks for your message! I will review it right away.",

@@ -401,6 +401,12 @@ export class ChatWidget {
       root.style.setProperty(key, String(value));
     }
 
+    const { bottomOffsetPx, rightOffsetPx } = this.options.position;
+    const bottom = Number.isFinite(bottomOffsetPx) ? Math.max(0, bottomOffsetPx) : 0;
+    const right = Number.isFinite(rightOffsetPx) ? Math.max(0, rightOffsetPx) : 0;
+    root.style.setProperty("--acw-position-bottom", `${bottom}px`);
+    root.style.setProperty("--acw-position-right", `${right}px`);
+
     if (this.options.theme.showScrollbar) {
       root.removeAttribute("data-acw-hide-scrollbar");
     } else {
@@ -1389,9 +1395,16 @@ export class ChatWidget {
     }
     
     const { widthPercent, minWidthPx, maxWidthPx, heightPercent, minHeightPx } = this.options.dimensions;
+    const { bottomOffsetPx, rightOffsetPx } = this.options.position;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const horizontalPadding = 32;
+    const effectiveRightOffset = Number.isFinite(rightOffsetPx)
+      ? Math.max(0, rightOffsetPx)
+      : 0;
+    const effectiveBottomOffset = Number.isFinite(bottomOffsetPx)
+      ? Math.max(0, bottomOffsetPx)
+      : 0;
+    const horizontalPadding = Math.max(32, effectiveRightOffset + 16);
     
     const desiredWidth = Math.max((viewportWidth * widthPercent) / 100, minWidthPx);
     const availableWidth = Math.max(minWidthPx, viewportWidth - horizontalPadding);
@@ -1404,7 +1417,7 @@ export class ChatWidget {
     
     const buttonHeight = this.launcherButton ? this.launcherButton.offsetHeight : 56;
     const spacing = 36;
-    const availableHeight = viewportHeight - (buttonHeight + spacing);
+    const availableHeight = viewportHeight - (buttonHeight + spacing + effectiveBottomOffset);
     const desiredHeight = Math.max((viewportHeight * heightPercent) / 100, minHeightPx);
     const height = clamp(desiredHeight, minHeightPx, Math.max(minHeightPx, availableHeight));
 

@@ -161,6 +161,10 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
             heightPercent: 70,
             minHeightPx: 420,
           },
+          position: {
+            bottomOffsetPx: 32,
+            rightOffsetPx: 28,
+          },
           events: {
             onReady: () => console.log('[docs] Chat ready'),
             onOpen: () => console.log('[docs] Chat opened'),
@@ -548,6 +552,8 @@ npm run build
 ```
 
 The demo becomes available at `http://localhost:8080/index.html`. You can pass a different directory to the script, for example `./start.sh public`.
+
+
 
 
 

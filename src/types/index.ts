@@ -272,6 +272,16 @@ export interface ChatWidgetDimensions {
 }
 
 /**
+ * Positioning offsets for the floating widget container
+ */
+export interface ChatWidgetPosition {
+  /** Distance in pixels from the bottom edge of the viewport */
+  bottomOffsetPx: number;
+  /** Distance in pixels from the right edge of the viewport */
+  rightOffsetPx: number;
+}
+
+/**
  * Optional lifecycle callbacks for the chat widget
  */
 export interface ChatWidgetEvents {
@@ -347,6 +357,8 @@ export interface ChatWidgetOptions {
   footerLinks: ChatFooterLink[];
   /** Widget dimension settings */
   dimensions: ChatWidgetDimensions;
+  /** Placement offsets for the floating container */
+  position: ChatWidgetPosition;
   /** Delay in milliseconds before showing teaser */
   teaserDelayMs: number;
   /** Array of mock responses for demo mode */

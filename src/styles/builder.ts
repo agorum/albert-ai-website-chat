@@ -26,7 +26,10 @@ export function buildStyles(): string {
     /* Container and Layout */
     .acw-container {
       position: fixed;
-      inset: auto var(--acw-spacing-lg) var(--acw-spacing-lg) auto;
+      top: auto;
+      left: auto;
+      right: var(--acw-position-right, var(--acw-spacing-lg));
+      bottom: var(--acw-position-bottom, var(--acw-spacing-lg));
       display: flex;
       flex-direction: column;
       align-items: flex-end;
@@ -629,8 +632,11 @@ export function buildStyles(): string {
     /* Mobile Responsive */
     @media (max-width: 768px) {
       .acw-container {
-        inset: auto var(--acw-spacing-md) var(--acw-spacing-md) var(--acw-spacing-md);
-        width: calc(100vw - var(--acw-spacing-md) * 2);
+        top: auto;
+        right: var(--acw-position-right, var(--acw-spacing-md));
+        bottom: var(--acw-position-bottom, var(--acw-spacing-md));
+        left: var(--acw-position-right, var(--acw-spacing-md));
+        width: calc(100vw - (var(--acw-position-right, var(--acw-spacing-md)) * 2));
         align-items: flex-end;
       }
       .acw-chat {
