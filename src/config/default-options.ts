@@ -9,6 +9,11 @@
 import { ChatWidgetOptions } from '../types';
 
 /**
+ * Default placeholder text for the input field
+ */
+export const DEFAULT_INPUT_PLACEHOLDER = "Your message ...";
+
+/**
  * Complete default configuration for the chat widget
  */
 export const defaultOptions: ChatWidgetOptions = {
@@ -95,6 +100,7 @@ export const defaultOptions: ChatWidgetOptions = {
     closeLabel: "Close",
     reloadLabel: "Restart",
     initialMessage: "Hello! I am ALBERT | AI. How can I support you today?",
+    inputPlaceholder: DEFAULT_INPUT_PLACEHOLDER,
     consentPrompt:
       "Please review our privacy notice and accept to start the conversation.",
     consentAcceptLabel: "Accept",
@@ -160,8 +166,3 @@ export const defaultOptions: ChatWidgetOptions = {
 export const DEFAULT_SERVICE_POLL_INTERVAL = 250;
 export const DEFAULT_STORAGE_KEY = "albert-chat-session-id";
 export const MAX_POLL_FAILURES_BEFORE_RESET = 3;
-
-/**
- * Default placeholder text for the input field
- */
-export const DEFAULT_INPUT_PLACEHOLDER = "Your message …";

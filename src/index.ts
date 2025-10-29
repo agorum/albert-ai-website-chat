@@ -1198,7 +1198,7 @@ export class ChatWidget {
     }
     if (this.inputField) {
       this.inputField.disabled = false;
-      this.inputField.placeholder = DEFAULT_INPUT_PLACEHOLDER;
+      this.inputField.placeholder = this.options.texts.inputPlaceholder || DEFAULT_INPUT_PLACEHOLDER;
     }
   }
 

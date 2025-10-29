@@ -10,6 +10,7 @@ import { createIconElement } from '../utils/dom-utils';
 import { formatTime } from '../utils';
 import { renderMarkdown } from '../renderer/markdown';
 import { renderPlainText } from '../utils';
+import { DEFAULT_INPUT_PLACEHOLDER } from '../config/default-options';
 
 /**
  * Creates the chat header element
@@ -91,7 +92,7 @@ export function createInputArea(options: ChatWidgetOptions): {
   inputField.rows = 1;
   inputField.setAttribute("maxlength", "1000");
   inputField.setAttribute("aria-label", options.texts.sendButtonLabel);
-  inputField.placeholder = "Ihre Nachricht …";
+  inputField.placeholder = options.texts.inputPlaceholder || DEFAULT_INPUT_PLACEHOLDER;
 
   row.appendChild(inputField);
 
@@ -229,9 +230,9 @@ export function createConsentPrompt(
   const bubble = document.createElement("div");
   bubble.className = "acw-bubble acw-consent-bubble";
 
-  const text = document.createElement("p");
+  const text = document.createElement("div");
   text.className = "acw-consent-text";
-  text.textContent = options.texts.consentPrompt;
+  text.innerHTML = renderMarkdown(options.texts.consentPrompt);
   bubble.appendChild(text);
 
   const actions = document.createElement("div");

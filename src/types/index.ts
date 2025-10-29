@@ -195,7 +195,9 @@ export interface ChatWidgetTexts {
   reloadLabel: string;
   /** Initial message from the agent when chat starts */
   initialMessage: string;
-  /** Privacy consent prompt text */
+  /** Placeholder text shown inside the input field */
+  inputPlaceholder: string;
+  /** Privacy consent prompt text (supports Markdown) */
   consentPrompt: string;
   /** Label for accepting privacy consent */
   consentAcceptLabel: string;

@@ -128,8 +128,9 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
             closeLabel: 'Close window',
             reloadLabel: 'Restart',
             initialMessage: 'Hello! Great to see you. What can ALBERT | AI explain today?',
+            inputPlaceholder: 'Type your message here...',
             consentPrompt:
-              'Before we start, please read our privacy notice and confirm your consent.',
+              'Before we start, please read our **privacy notice** and confirm your consent.',
             consentAcceptLabel: 'Accept',
             consentDeclineLabel: 'Decline',
             consentDeclinedMessage:
@@ -202,6 +203,8 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
 
 The optional `serviceConfig.title` lets you provide a human-readable session label that is forwarded
 to the `/init` endpoint together with the preset information.
+
+Set `texts.inputPlaceholder` if you want to change the message input placeholder (default: `Your message ...`).
 
 ## Usage with Bundlers (ESM)
 
@@ -326,12 +329,12 @@ interface ChatWidgetOptions {
     teaserText: string;
     headerTitle: string;
     headerSubtitle: string;
-    placeholder: string;
+    inputPlaceholder: string;
     sendButtonLabel: string;
     closeLabel: string;
     reloadLabel: string;
     initialMessage: string;
-    consentPrompt: string;
+    consentPrompt: string; // supports Markdown
     consentAcceptLabel: string;
     consentDeclineLabel: string;
     consentDeclinedMessage: string;
@@ -448,4 +451,3 @@ npm run build
 ```
 
 The demo becomes available at `http://localhost:8080/index.html`. You can pass a different directory to the script, for example `./start.sh public`.
-
