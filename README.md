@@ -1,6 +1,6 @@
-# ALBERT \| AI Chat Widget
+﻿# ALBERT \| AI Chat Widget
 
-A configurable chat widget that can be embedded into any website with a single script tag. This chat component is designed to work hand in hand with ALBERT \| AI so you can bring an AI-driven service to your own site—ranging from classic conversations to sophisticated agentic workflows that leverage tool calls and MCP integrations for sales, customer support, order tracking, and more. Further information about the ALBERT \| AI ecosystem is available at https://www.agorum.com/albert-ki-universum.
+A configurable chat widget that can be embedded into any website with a single script tag. This chat component is designed to work hand in hand with ALBERT \| AI so you can bring an AI-driven service to your own siteâ€”ranging from classic conversations to sophisticated agentic workflows that leverage tool calls and MCP integrations for sales, customer support, order tracking, and more. Further information about the ALBERT \| AI ecosystem is available at https://www.agorum.com/albert-ki-universum.
 
 The project is written in TypeScript, renders inside a Shadow DOM, and currently ships with mock responses so it can run without a backend. A REST integration can be added later.
 
@@ -8,7 +8,7 @@ The project is written in TypeScript, renders inside a Shadow DOM, and currently
 
 - Launcher button in the lower-right corner that opens or closes the chat window
 - Optional teaser bubble that appears after a configurable delay if the chat has not been opened yet
-- Fully themable (colors, typography, copy, icons, dimensions, footer links)
+- Fully themable (colors, typography, copy, icons, dimensions, footer links) with per-element color controls for header, teaser, launcher, messages, inputs, and consent states
 - Responsive chat window with header, reload action, and close action
 - Scrollable transcript with clearly separated user and agent bubbles
 - Input area with auto-resizing textarea (up to 5 lines), Enter-to-send, and a send button
@@ -33,49 +33,140 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>ALBERT | AI Chat Widget – Example</title>
+    <title>ALBERT | AI Chat Widget â€“ Example</title>
     <script defer src="./dist/index.global.js"></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
         const serviceEndpoint = 'http://localhost:8010';
 
         AlbertChat.init({
-          texts: {
-            headerTitle: 'ALBERT | AI Demo',
-            headerSubtitle: 'Ask anything you need',
-            teaserText: 'Questions? We are happy to help!',
-          },
+          target: document.body,
           serviceConfig: {
-            endpoint: serviceEndpoint,
+            endpoint: 'http://10.0.1.86:8010',
             preset: 'albert',
+            pollIntervalMs: 500,
+            storageKey: 'albert-chat-session-id',
           },
+          theme: {
+            fontFamily: "'New Science', 'Tahoma', 'Arial', sans-serif",
+            chatBorderColor: '#cecece',
+            chatShadowColor: 'rgba(0, 107, 255, 0.25)',
+            headerBackgroundColor: '#EB4D27',
+            headerTitleColor: '#FFFFFF',
+            headerSubtitleColor: 'rgba(255, 255, 255, 0.85)',
+            headerIconColor: '#FFFFFF',
+            headerActionIconColor: '#FFFFFF',
+            headerActionHoverBackgroundColor: 'rgba(255, 255, 255, 0.15)',
+            headerActionFocusOutlineColor: '#FFFFFF',
+            userMessageBackgroundColor: '#006bff',
+            userMessageTextColor: '#ffffff',
+            agentMessageBackgroundColor: '#f0f0f0',
+            agentMessageTextColor: '#3b3b3b',
+            inputBorderColor: '#c0c0c0',
+            inputFocusBorderColor: '#006bff',
+            inputFocusShadowColor: 'transparent',
+            inputDividerColor: '#cecece',
+            sendButtonBackgroundColor: '#CECECE',
+            sendButtonTextColor: '#3B3B3B',
+            sendButtonHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
+            sendButtonFocusOutlineColor: '#006bff',
+            launcherBackgroundColor: '#EB4D27',
+            launcherTextColor: '#ffffff',
+            launcherShadowColor: 'rgba(0, 107, 255, 0.25)',
+            launcherHoverShadowColor: 'rgba(0, 107, 255, 0.35)',
+            launcherFocusOutlineColor: '#EB4D27',
+            teaserBackgroundColor: '#EB4D27',
+            teaserTextColor: '#ffffff',
+            teaserBorderColor: '#EB4D27',
+            teaserShadowColor: 'rgba(0, 107, 255, 0.2)',
+            footerBackgroundColor: '#EB4D27',
+            footerLinkColor: '#FFFFFF',
+            footerLinkHoverColor: '#ffd7cc',
+            consentAcceptBackgroundColor: '#006bff',
+            consentAcceptTextColor: '#ffffff',
+            consentAcceptHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
+            consentAcceptFocusOutlineColor: '#ffffff',
+            consentDeclineTextColor: '#000000',
+            consentDeclineBorderColor: 'rgba(255, 255, 255, 0.6)',
+            consentDeclineHoverBackgroundColor: 'rgba(255, 255, 255, 0.12)',
+            consentDeclineFocusOutlineColor: '#ffffff',
+            showChatBorder: false,
+            showHeaderBorder: false,
+            showInputBorder: true,
+            showFooterBorder: false,
+            showTeaserBorder: false,
+            showInputDivider: true,
+            showScrollbar: false,
+          },
+          texts: {
+            launcherLabel: 'Ask ALBERT | AI',
+            launcherAriaLabel: 'Open the ALBERT | AI chat',
+            teaserText: 'Need a hand? ALBERT | AI is ready.',
+            headerTitle: 'ALBERT | AI Assistant',
+            headerSubtitle: 'We are happy to support you',
+            sendButtonLabel: 'Send',
+            closeLabel: 'Close window',
+            reloadLabel: 'Restart',
+            initialMessage: 'Hello! Great to see you. What can ALBERT | AI explain today?',
+            consentPrompt:
+              'Before we start, please read our privacy notice and confirm your consent.',
+            consentAcceptLabel: 'Accept',
+            consentDeclineLabel: 'Decline',
+            consentDeclinedMessage:
+              'Without consent the chat cannot continue. Restart if you change your mind.',
+            sendWhileStreamingTooltip: 'Please wait until the current response has finished.',
+            sendWhileConsentPendingTooltip:
+              'You can only send messages after accepting the privacy notice.',
+            sendWhileTerminatedTooltip:
+              'The chat is inactive. Restart to begin a new conversation.',
+            toolCallPlaceholder: 'Give me a moment while I look that up...',
+          },
+          icons: {
+            headerIcon: './assets/agorum-logo.svg',
+            closeIcon: '\u2716',
+            reloadIcon: '\u21bb',
+            launcherIcon: '\u{1f4ac}',
+            sendIcon: '\u27a4',
+          },
+          footerLinks: [
+            { label: 'Privacy', href: 'https://example.com/privacy', target: '_blank' },
+            { label: 'Imprint', href: 'https://example.com/imprint', target: '_blank' },
+          ],
+          dimensions: {
+            widthPercent: 33,
+            minWidthPx: 500,
+            heightPercent: 70,
+            minHeightPx: 420,
+          },
+          teaserDelayMs: 3500,
+          mockResponses: [
+            'Thanks for your question! I am reviewing everything so I do not miss any detail.',
+            'Here is a structured answer:\n\n1. Describe the current status\n2. List the relevant steps\n3. Mention alternatives worth considering\n4. Close with a short recommendation\n\nNeed more depth on any point? Just let me know.',
+            'I also gathered a few extra tips:\n\n- Double-check your admin configuration.\n- Compare the latest log files for anomalies.\n- Document the next actions so your team stays aligned.\n\nAnything else ALBERT | AI can do for you?',
+          ],
+          mockResponseDelayMs: [900, 1800],
+          zIndex: 12000,
+          locale: 'de-DE',
+          requirePrivacyConsent: true,
           welcomeMessage: {
             enabled: true,
-            text: 'Hello! How can ALBERT | AI support you today? 🤖',
+            text: 'Hello! ALBERT | AI is on standby. How can we assist you today?',
+            className: 'acw-welcome-highlight',
+            styles: {
+              color: '#000000',
+              fontWeight: '600',
+            },
           },
           disclaimer: {
             enabled: true,
-            text: 'Note: ALBERT | AI replies are generated automatically. Please verify important details.',
+            text: 'Note: ALBERT | AI may be incorrect. Please verify important information.',
+            className: 'acw-disclaimer-note',
             styles: {
-              fontSize: '0.7rem',
+              fontSize: '0.78rem',
+              color: '#3b3b3b',
+              marginTop: '12px',
             },
           },
-          theme: {
-            primaryColor: '#9333ea',
-            launcherBackground: '#7c3aed',
-            userMessageColor: '#7c3aed',
-          },
-          footerLinks: [
-            { label: 'Privacy', href: '/privacy', target: '_blank' },
-            { label: 'Imprint', href: '/imprint', target: '_blank' }
-          ],
-          dimensions: {
-            widthPercent: 35,
-            minWidthPx: 320,
-            heightPercent: 65,
-            minHeightPx: 420,
-          },
-          teaserDelayMs: 6000,
         });
       });
     </script>
@@ -106,7 +197,7 @@ init({
   },
   welcomeMessage: {
     enabled: true,
-    text: 'Welcome back! ALBERT | AI is ready to help. 🤖',
+    text: 'Welcome back! ALBERT | AI is ready to help. ðŸ¤–',
   },
   disclaimer: {
     enabled: true,
@@ -122,22 +213,85 @@ interface ChatWidgetOptions {
   target?: HTMLElement | string; // default: document.body
   theme: {
     fontFamily: string;
-    primaryColor: string;
-    secondaryColor: string;
-    surfaceColor: string;
-    surfaceAccentColor: string;
-    textColor: string;
-    userMessageColor: string;
-    userTextColor: string;
-    agentMessageColor: string;
-    agentTextColor: string;
-    launcherBackground: string;
-    launcherTextColor: string;
-    sendButtonBackground: string;
+    bodyTextColor: string;
+    chatBackgroundColor: string;
+    chatBorderColor: string;
+    chatShadowColor: string;
+
+    headerBackgroundColor: string;
+    headerBorderColor: string;
+    headerTitleColor: string;
+    headerSubtitleColor: string;
+    headerIconColor: string;
+    headerActionIconColor: string;
+    headerActionHoverBackgroundColor: string;
+    headerActionFocusOutlineColor: string;
+
+    bodyBackgroundColor: string;
+    emptyStateTextColor: string;
+    toolPlaceholderTextColor: string;
+    timestampColor: string;
+    messageCodeBackgroundColor: string;
+    messageCodeTextColor: string;
+    messageDividerColor: string;
+    messageLinkColor: string;
+    failedMessageBackgroundColor: string;
+    failedMessageBorderColor: string;
+    failedMessageTimestampColor: string;
+    userMessageBackgroundColor: string;
+    userMessageTextColor: string;
+    agentMessageBackgroundColor: string;
+    agentMessageTextColor: string;
+
+    scrollbarThumbColor: string;
+    scrollbarThumbHoverColor: string;
+
+    inputBackgroundColor: string;
+    inputTextColor: string;
+    inputPlaceholderColor: string;
+    inputBorderColor: string;
+    inputFocusBorderColor: string;
+    inputFocusShadowColor: string;
+    inputDividerColor: string;
+
+    sendButtonBackgroundColor: string;
     sendButtonTextColor: string;
-    borderColor: string;
-    shadowColor: string;
-  };
+    sendButtonHoverShadowColor: string;
+    sendButtonFocusOutlineColor: string;
+
+    launcherBackgroundColor: string;
+    launcherTextColor: string;
+    launcherShadowColor: string;
+    launcherHoverShadowColor: string;
+    launcherFocusOutlineColor: string;
+
+    teaserBackgroundColor: string;
+    teaserTextColor: string;
+    teaserBorderColor: string;
+    teaserShadowColor: string;
+
+    footerBackgroundColor: string;
+    footerLinkColor: string;
+    footerLinkHoverColor: string;
+
+    consentAcceptBackgroundColor: string;
+    consentAcceptTextColor: string;
+    consentAcceptHoverShadowColor: string;
+    consentAcceptFocusOutlineColor: string;
+    consentDeclineTextColor: string;
+      consentDeclineBorderColor: string;
+      consentDeclineHoverBackgroundColor: string;
+      consentDeclineFocusOutlineColor: string;
+
+      disclaimerTextColor: string;
+      showChatBorder: boolean;
+      showHeaderBorder: boolean;
+      showInputBorder: boolean;
+      showFooterBorder: boolean;
+      showTeaserBorder: boolean;
+      showInputDivider: boolean;
+      showScrollbar: boolean;
+    };
   texts: {
     launcherLabel: string;
     launcherAriaLabel: string;
@@ -255,7 +409,7 @@ server {
 - The `Authorization` header injects the Bearer token of the agorum core service user so that ALBERT \| AI accepts the request.
 - The optional CORS headers restrict browser access to your trusted origin and only allow the required headers and methods. The `OPTIONS` branch returns a 204 for preflight requests, so browsers can complete their CORS checks.
 
-Once the proxy is live, point the widget’s `serviceConfig.endpoint` to the public `/albert/chat/` location on your nginx host. The widget will forward all chat requests through the secure proxy to ALBERT \| AI.
+Once the proxy is live, point the widgetâ€™s `serviceConfig.endpoint` to the public `/albert/chat/` location on your nginx host. The widget will forward all chat requests through the secure proxy to ALBERT \| AI.
 
 ## Local Test Server
 
@@ -265,3 +419,4 @@ npm run build
 ```
 
 The demo becomes available at `http://localhost:8080/index.html`. You can pass a different directory to the script, for example `./start.sh public`.
+

@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ALBERT | AI Chat Widget – Live Demo</title>
+    <title>ALBERT | AI Chat Widget â€“ Live Demo</title>
     <style>
       :root {
         color-scheme: light;
@@ -11,29 +11,38 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: system-ui, sans-serif;
+        font-family: 'New Science', 'Tahoma', 'Arial', sans-serif;
         display: grid;
         place-items: center;
-        background: radial-gradient(circle at top, #e0f2fe 0%, #f8fafc 40%, #ffffff 100%);
-        color: #0f172a;
+        background: radial-gradient(circle at 20% -20%, #006bff 0%, #4ee3ff 45%, #fafafa 90%);
+        color: #000000;
       }
       main {
         text-align: center;
-        padding: 48px;
+        padding: 56px;
         max-width: 640px;
+        background: #ffffff;
+        border-radius: 24px;
+        border: 1px solid #cecece;
+        box-shadow: 0 28px 64px -30px rgba(0, 107, 255, 0.45);
       }
       h1 {
-        font-size: clamp(2rem, 5vw, 3rem);
-        margin-bottom: 16px;
+        font-size: clamp(2.25rem, 5vw, 3.25rem);
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: #006bff;
+        letter-spacing: 0.01em;
       }
       p {
         font-size: 1.1rem;
-        line-height: 1.6;
+        line-height: 1.7;
+        color: #3b3b3b;
       }
       code {
-        background: rgba(15, 23, 42, 0.08);
-        padding: 2px 6px;
+        background: #f0f0f0;
+        padding: 3px 6px;
         border-radius: 6px;
+        color: #000000;
       }
     </style>
   </head>
@@ -61,22 +70,55 @@
             storageKey: 'albert-chat-session-id',
           },
           theme: {
-            fontFamily: "'Inter', system-ui, sans-serif",
-            primaryColor: '#0ea5e9',
-            secondaryColor: '#0284c7',
-            surfaceColor: '#ffffff',
-            surfaceAccentColor: '#f0f9ff',
-            textColor: '#0f172a',
-            userMessageColor: '#0284c7',
-            userTextColor: '#ffffff',
-            agentMessageColor: '#e0f2fe',
-            agentTextColor: '#0f172a',
-            launcherBackground: '#0ea5e9',
+            fontFamily: "'New Science', 'Tahoma', 'Arial', sans-serif",
+            chatBorderColor: '#cecece',
+            chatShadowColor: 'rgba(0, 107, 255, 0.25)',
+            headerBackgroundColor: '#EB4D27',
+            headerTitleColor: '#FFFFFF',
+            headerSubtitleColor: 'rgba(255, 255, 255, 0.85)',
+            headerIconColor: '#FFFFFF',
+            headerActionIconColor: '#FFFFFF',
+            headerActionHoverBackgroundColor: 'rgba(255, 255, 255, 0.15)',
+            headerActionFocusOutlineColor: '#FFFFFF',
+            userMessageBackgroundColor: '#006bff',
+            userMessageTextColor: '#ffffff',
+            agentMessageBackgroundColor: '#f0f0f0',
+            agentMessageTextColor: '#3b3b3b',
+            inputBorderColor: '#c0c0c0',
+            inputFocusBorderColor: '#006bff',
+            inputFocusShadowColor: 'transparent',
+            inputDividerColor: '#cecece',
+            sendButtonBackgroundColor: '#CECECE',
+            sendButtonTextColor: '#3B3B3B',
+            sendButtonHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
+            sendButtonFocusOutlineColor: '#006bff',
+            launcherBackgroundColor: '#EB4D27',
             launcherTextColor: '#ffffff',
-            sendButtonBackground: '#0ea5e9',
-            sendButtonTextColor: '#ffffff',
-            borderColor: '#dbeafe',
-            shadowColor: 'rgba(14, 165, 233, 0.25)',
+            launcherShadowColor: 'rgba(0, 107, 255, 0.25)',
+            launcherHoverShadowColor: 'rgba(0, 107, 255, 0.35)',
+            launcherFocusOutlineColor: '#EB4D27',
+            teaserBackgroundColor: '#EB4D27',
+            teaserTextColor: '#ffffff',
+            teaserBorderColor: '#EB4D27',
+            teaserShadowColor: 'rgba(0, 107, 255, 0.2)',
+            footerBackgroundColor: '#EB4D27',
+            footerLinkColor: '#FFFFFF',
+            footerLinkHoverColor: '#ffd7cc',
+            consentAcceptBackgroundColor: '#006bff',
+            consentAcceptTextColor: '#ffffff',
+            consentAcceptHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
+            consentAcceptFocusOutlineColor: '#ffffff',
+            consentDeclineTextColor: '#000000',
+            consentDeclineBorderColor: 'rgba(255, 255, 255, 0.6)',
+            consentDeclineHoverBackgroundColor: 'rgba(255, 255, 255, 0.12)',
+            consentDeclineFocusOutlineColor: '#ffffff',
+            showChatBorder: false,
+            showHeaderBorder: false,
+            showInputBorder: true,
+            showFooterBorder: false,
+            showTeaserBorder: false,
+            showInputDivider: true,
+            showScrollbar: false,
           },
           texts: {
             launcherLabel: 'Ask ALBERT | AI',
@@ -99,14 +141,14 @@
               'You can only send messages after accepting the privacy notice.',
             sendWhileTerminatedTooltip:
               'The chat is inactive. Restart to begin a new conversation.',
-            toolCallPlaceholder: 'Give me a moment while I look that up…',
+            toolCallPlaceholder: 'Give me a moment while I look that up...',
           },
           icons: {
-            headerIcon: '🤖',
-            closeIcon: '✕',
-            reloadIcon: '⟳',
-            launcherIcon: '💬',
-            sendIcon: '➤',
+            headerIcon: './assets/agorum-logo.svg',
+            closeIcon: '\u2716',
+            reloadIcon: '\u21bb',
+            launcherIcon: '\u{1f4ac}',
+            sendIcon: '\u27a4',
           },
           footerLinks: [
             { label: 'Privacy', href: 'https://example.com/privacy', target: '_blank' },
@@ -126,15 +168,14 @@
           ],
           mockResponseDelayMs: [900, 1800],
           zIndex: 12000,
-          locale: 'en-US',
+          locale: 'de-DE',
           requirePrivacyConsent: true,
           welcomeMessage: {
             enabled: true,
             text: 'Hello! ALBERT | AI is on standby. How can we assist you today?',
             className: 'acw-welcome-highlight',
             styles: {
-              background: '#e0f2fe',
-              color: '#0f172a',
+              color: '#000000',
               fontWeight: '600',
             },
           },
@@ -144,7 +185,7 @@
             className: 'acw-disclaimer-note',
             styles: {
               fontSize: '0.78rem',
-              color: 'rgba(15, 23, 42, 0.65)',
+              color: '#3b3b3b',
               marginTop: '12px',
             },
           },
@@ -153,3 +194,6 @@
     </script>
   </body>
 </html>
+
+
+

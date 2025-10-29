@@ -102,16 +102,134 @@
         
         // Initialize chat widget with mock service
         window.addEventListener('DOMContentLoaded', () => {
-            chatWidget = new AlbertChat({
+            chatWidget = AlbertChat.init({
+                target: document.body,
+                serviceConfig: {
+                    endpoint: 'mock://test',
+                    preset: 'albert',
+                    pollIntervalMs: 100,
+                    storageKey: 'albert-chat-session-id',
+                },
+                theme: {
+                    fontFamily: "'New Science', 'Tahoma', 'Arial', sans-serif",
+                    chatBorderColor: '#cecece',
+                    chatShadowColor: 'rgba(0, 107, 255, 0.25)',
+                    headerBackgroundColor: '#EB4D27',
+                    headerTitleColor: '#FFFFFF',
+                    headerSubtitleColor: 'rgba(255, 255, 255, 0.85)',
+                    headerIconColor: '#FFFFFF',
+                    headerActionIconColor: '#FFFFFF',
+                    headerActionHoverBackgroundColor: 'rgba(255, 255, 255, 0.15)',
+                    headerActionFocusOutlineColor: '#FFFFFF',
+                    userMessageBackgroundColor: '#006bff',
+                    userMessageTextColor: '#ffffff',
+                    agentMessageBackgroundColor: '#f0f0f0',
+                    agentMessageTextColor: '#3b3b3b',
+                    inputBorderColor: '#c0c0c0',
+                    inputFocusBorderColor: '#006bff',
+                    inputFocusShadowColor: 'transparent',
+                    inputDividerColor: '#cecece',
+                    sendButtonBackgroundColor: '#CECECE',
+                    sendButtonTextColor: '#3B3B3B',
+                    sendButtonHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
+                    sendButtonFocusOutlineColor: '#006bff',
+                    launcherBackgroundColor: '#EB4D27',
+                    launcherTextColor: '#ffffff',
+                    launcherShadowColor: 'rgba(0, 107, 255, 0.25)',
+                    launcherHoverShadowColor: 'rgba(0, 107, 255, 0.35)',
+                    launcherFocusOutlineColor: '#EB4D27',
+                    teaserBackgroundColor: '#EB4D27',
+                    teaserTextColor: '#ffffff',
+                    teaserBorderColor: '#EB4D27',
+                    teaserShadowColor: 'rgba(0, 107, 255, 0.2)',
+                    footerBackgroundColor: '#EB4D27',
+                    footerLinkColor: '#FFFFFF',
+                    footerLinkHoverColor: '#ffd7cc',
+                    consentAcceptBackgroundColor: '#006bff',
+                    consentAcceptTextColor: '#ffffff',
+                    consentAcceptHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
+                    consentAcceptFocusOutlineColor: '#ffffff',
+                    consentDeclineTextColor: '#000000',
+                    consentDeclineBorderColor: 'rgba(255, 255, 255, 0.6)',
+                    consentDeclineHoverBackgroundColor: 'rgba(255, 255, 255, 0.12)',
+                    consentDeclineFocusOutlineColor: '#ffffff',
+                    showChatBorder: false,
+                    showHeaderBorder: false,
+                    showInputBorder: true,
+                    showFooterBorder: false,
+                    showTeaserBorder: false,
+                    showInputDivider: true,
+                    showScrollbar: false,
+                },
+                texts: {
+                    launcherLabel: 'Ask ALBERT | AI',
+                    launcherAriaLabel: 'Open the ALBERT | AI chat',
+                    teaserText: 'Need a hand? ALBERT | AI is ready.',
+                    headerTitle: 'ALBERT | AI Assistant',
+                    headerSubtitle: 'We are happy to support you',
+                    sendButtonLabel: 'Send',
+                    closeLabel: 'Close window',
+                    reloadLabel: 'Restart',
+                    initialMessage: 'Hello! Great to see you. What can ALBERT | AI explain today?',
+                    consentPrompt:
+                        'Before we start, please read our privacy notice and confirm your consent.',
+                    consentAcceptLabel: 'Accept',
+                    consentDeclineLabel: 'Decline',
+                    consentDeclinedMessage:
+                        'Without consent the chat cannot continue. Restart if you change your mind.',
+                    sendWhileStreamingTooltip: 'Please wait until the current response has finished.',
+                    sendWhileConsentPendingTooltip:
+                        'You can only send messages after accepting the privacy notice.',
+                    sendWhileTerminatedTooltip:
+                        'The chat is inactive. Restart to begin a new conversation.',
+                    toolCallPlaceholder: 'Give me a moment while I look that up...',
+                },
+                icons: {
+                    headerIcon: './assets/agorum-logo.svg',
+                    closeIcon: '\u2716',
+                    reloadIcon: '\u21bb',
+                    launcherIcon: '\u{1f4ac}',
+                    sendIcon: '\u27a4',
+                },
+                footerLinks: [
+                    { label: 'Privacy', href: 'https://example.com/privacy', target: '_blank' },
+                    { label: 'Imprint', href: 'https://example.com/imprint', target: '_blank' },
+                ],
+                dimensions: {
+                    widthPercent: 33,
+                    minWidthPx: 500,
+                    heightPercent: 70,
+                    minHeightPx: 420,
+                },
+                teaserDelayMs: 3500,
+                mockResponses: [
+                    'Thanks for your question! I am reviewing everything so I do not miss any detail.',
+                    'Here is a structured answer:\n\n1. Describe the current status\n2. List the relevant steps\n3. Mention alternatives worth considering\n4. Close with a short recommendation\n\nNeed more depth on any point? Just let me know.',
+                    'I also gathered a few extra tips:\n\n- Double-check your admin configuration.\n- Compare the latest log files for anomalies.\n- Document the next actions so your team stays aligned.\n\nAnything else ALBERT | AI can do for you?',
+                ],
+                mockResponseDelayMs: [900, 1800],
+                zIndex: 12000,
+                locale: 'de-DE',
                 requirePrivacyConsent: false,
                 welcomeMessage: {
                     enabled: true,
-                    text: "Hello! This is a tool-call test for ALBERT | AI."
+                    text: 'Hello! ALBERT | AI is on standby. How can we assist you today?',
+                    className: 'acw-welcome-highlight',
+                    styles: {
+                        color: '#000000',
+                        fontWeight: '600',
+                    },
                 },
-                serviceConfig: {
-                    endpoint: 'mock://test',
-                    pollIntervalMs: 100
-                }
+                disclaimer: {
+                    enabled: true,
+                    text: 'Note: ALBERT | AI may be incorrect. Please verify important information.',
+                    className: 'acw-disclaimer-note',
+                    styles: {
+                        fontSize: '0.78rem',
+                        color: '#3b3b3b',
+                        marginTop: '12px',
+                    },
+                },
             });
             
             // Override fetch to simulate server responses

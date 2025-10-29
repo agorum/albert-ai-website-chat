@@ -13,7 +13,7 @@
  * import { init } from 'albert-ai-website-chat';
  * 
  * const widget = init({
- *   theme: { primaryColor: '#2563eb' },
+ *   theme: { headerBackgroundColor: '#2563eb', headerTitleColor: '#ffffff' },
  *   texts: { headerTitle: 'Customer Support' },
  *   serviceConfig: {
  *     endpoint: 'https://api.example.com/chat'
@@ -367,6 +367,12 @@ export class ChatWidget {
     
     for (const [key, value] of Object.entries(vars)) {
       root.style.setProperty(key, String(value));
+    }
+
+    if (this.options.theme.showScrollbar) {
+      root.removeAttribute("data-acw-hide-scrollbar");
+    } else {
+      root.setAttribute("data-acw-hide-scrollbar", "");
     }
   }
 

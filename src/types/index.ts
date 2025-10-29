@@ -31,36 +31,142 @@ export interface ChatFooterLink {
 export interface ChatWidgetTheme {
   /** Primary font family for the widget */
   fontFamily: string;
-  /** Primary brand color (used for buttons, links, etc.) */
-  primaryColor: string;
-  /** Secondary brand color (hover states, accents) */
-  secondaryColor: string;
-  /** Main background color for surfaces */
-  surfaceColor: string;
-  /** Accent background color for headers and footers */
-  surfaceAccentColor: string;
-  /** Default text color */
-  textColor: string;
+  /** Default text color for generic body content */
+  bodyTextColor: string;
+  /** Background color for the chat window surface */
+  chatBackgroundColor: string;
+  /** Border color for the chat window surface */
+  chatBorderColor: string;
+  /** Shadow color used for the chat window */
+  chatShadowColor: string;
+  /** Background color for the header section */
+  headerBackgroundColor: string;
+  /** Border color separating the header from the body */
+  headerBorderColor: string;
+  /** Text color for the header title */
+  headerTitleColor: string;
+  /** Text color for the header subtitle */
+  headerSubtitleColor: string;
+  /** Color for the header icon */
+  headerIconColor: string;
+  /** Color for header action icons (close/reload) */
+  headerActionIconColor: string;
+  /** Background color on hover for header action buttons */
+  headerActionHoverBackgroundColor: string;
+  /** Outline color for header action buttons on focus */
+  headerActionFocusOutlineColor: string;
+  /** Background color for the chat body content */
+  bodyBackgroundColor: string;
+  /** Text color for the empty state message */
+  emptyStateTextColor: string;
+  /** Text color for tool placeholders */
+  toolPlaceholderTextColor: string;
+  /** Text color for message timestamps */
+  timestampColor: string;
+  /** Background color for inline code and preformatted blocks */
+  messageCodeBackgroundColor: string;
+  /** Text color for inline code and preformatted blocks */
+  messageCodeTextColor: string;
+  /** Divider color used inside message content */
+  messageDividerColor: string;
+  /** Link color inside message bubbles */
+  messageLinkColor: string;
+  /** Background color for failed message bubbles */
+  failedMessageBackgroundColor: string;
+  /** Border color for failed message bubbles */
+  failedMessageBorderColor: string;
+  /** Timestamp color for failed message bubbles */
+  failedMessageTimestampColor: string;
   /** Background color for user message bubbles */
-  userMessageColor: string;
+  userMessageBackgroundColor: string;
   /** Text color for user message bubbles */
-  userTextColor: string;
+  userMessageTextColor: string;
   /** Background color for agent message bubbles */
-  agentMessageColor: string;
+  agentMessageBackgroundColor: string;
   /** Text color for agent message bubbles */
-  agentTextColor: string;
-  /** Background color for the launcher button */
-  launcherBackground: string;
-  /** Text color for the launcher button */
-  launcherTextColor: string;
+  agentMessageTextColor: string;
+  /** Scrollbar thumb color */
+  scrollbarThumbColor: string;
+  /** Scrollbar thumb hover color */
+  scrollbarThumbHoverColor: string;
+  /** Background color for the input area */
+  inputBackgroundColor: string;
+  /** Text color inside the input field */
+  inputTextColor: string;
+  /** Placeholder text color inside the input field */
+  inputPlaceholderColor: string;
+  /** Border color for the input field */
+  inputBorderColor: string;
+  /** Border color for the input field when focused */
+  inputFocusBorderColor: string;
+  /** Shadow color for the input field when focused */
+  inputFocusShadowColor: string;
+  /** Divider color between transcript and input */
+  inputDividerColor: string;
   /** Background color for the send button */
-  sendButtonBackground: string;
-  /** Text color for the send button */
+  sendButtonBackgroundColor: string;
+  /** Text/icon color for the send button */
   sendButtonTextColor: string;
-  /** Color for borders and dividers */
-  borderColor: string;
-  /** Color for shadows (with alpha channel) */
-  shadowColor: string;
+  /** Shadow color for the send button hover state */
+  sendButtonHoverShadowColor: string;
+  /** Outline color for the send button focus state */
+  sendButtonFocusOutlineColor: string;
+  /** Background color for the launcher button */
+  launcherBackgroundColor: string;
+  /** Text/icon color for the launcher button */
+  launcherTextColor: string;
+  /** Shadow color for the launcher button default state */
+  launcherShadowColor: string;
+  /** Shadow color for the launcher button hover state */
+  launcherHoverShadowColor: string;
+  /** Outline color for the launcher button focus state */
+  launcherFocusOutlineColor: string;
+  /** Background color for the teaser bubble */
+  teaserBackgroundColor: string;
+  /** Text color for the teaser bubble */
+  teaserTextColor: string;
+  /** Border color for the teaser bubble */
+  teaserBorderColor: string;
+  /** Shadow color for the teaser bubble */
+  teaserShadowColor: string;
+  /** Background color for the footer container */
+  footerBackgroundColor: string;
+  /** Text color for footer links */
+  footerLinkColor: string;
+  /** Hover color for footer links */
+  footerLinkHoverColor: string;
+  /** Background color for the consent accept button */
+  consentAcceptBackgroundColor: string;
+  /** Text color for the consent accept button */
+  consentAcceptTextColor: string;
+  /** Shadow color for the consent accept hover state */
+  consentAcceptHoverShadowColor: string;
+  /** Outline color for the consent accept focus state */
+  consentAcceptFocusOutlineColor: string;
+  /** Text color for the consent decline button */
+  consentDeclineTextColor: string;
+  /** Border color for the consent decline button */
+  consentDeclineBorderColor: string;
+  /** Background color for the consent decline hover state */
+  consentDeclineHoverBackgroundColor: string;
+  /** Outline color for the consent decline focus state */
+  consentDeclineFocusOutlineColor: string;
+  /** Text color for disclaimers */
+  disclaimerTextColor: string;
+  /** Whether the chat window outer border is visible */
+  showChatBorder: boolean;
+  /** Whether the header bottom divider is visible */
+  showHeaderBorder: boolean;
+  /** Whether the input textarea border is visible */
+  showInputBorder: boolean;
+  /** Whether the footer top divider is visible */
+  showFooterBorder: boolean;
+  /** Whether borders around the teaser bubble are visible */
+  showTeaserBorder: boolean;
+  /** Whether the divider between transcript and input area is shown */
+  showInputDivider: boolean;
+  /** Whether the message list scrollbar is visible */
+  showScrollbar: boolean;
 }
 
 /**
