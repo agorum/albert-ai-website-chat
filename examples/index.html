@@ -265,6 +265,14 @@
             // Minimum chat height in pixels
             minHeightPx: 420,
           },
+          events: {
+            // Lifecycle callback fired after the widget initialises
+            onReady: () => console.log('[demo] chat initialised'),
+            // Fires whenever the chat window is opened
+            onOpen: () => console.log('[demo] chat opened'),
+            // Fires whenever the chat window is closed
+            onClose: () => console.log('[demo] chat closed'),
+          },
           // Delay (ms) before the teaser bubble becomes visible
           teaserDelayMs: 3500,
           // Mocked agent replies used when no backend is available

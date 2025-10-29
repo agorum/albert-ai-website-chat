@@ -34,7 +34,8 @@ import {
   MessageElementRefs,
   ChatServiceHistoryEntry,
   ChatServiceInfoResponse,
-  ChatServiceOffsets
+  ChatServiceOffsets,
+  ChatWidgetEvents
 } from './types';
 
 import {
@@ -114,6 +115,7 @@ export class ChatWidget {
   private isTerminated = false;
   private shouldAutoScroll = true;
   private hasLoadedInitialHistory = false;
+  private readonly eventHandlers: ChatWidgetEvents;
   
   // Service and managers
   private service: ChatService;
@@ -143,6 +145,7 @@ export class ChatWidget {
     this.options = deepMerge(defaultOptions, options);
     this.instanceId = ++widgetInstanceCounter;
     this.isConsentGranted = !this.options.requirePrivacyConsent;
+    this.eventHandlers = { ...(this.options.events ?? {}) };
     
     // Initialize service and managers
     this.service = new ChatService(this.options.serviceConfig);
@@ -182,9 +185,10 @@ export class ChatWidget {
     }
 
     this.registerEventListeners();
-    this.startTeaserCountdown();
+  	this.startTeaserCountdown();
     this.renderInitialState();
     this.updateDimensions();
+    this.emitEvent("onReady");
   }
 
   /**
@@ -193,6 +197,11 @@ export class ChatWidget {
   destroy(): void {
     this.stopTeaserCountdown();
     this.service.stopPolling();
+
+    if (this.isOpen) {
+      this.isOpen = false;
+      this.emitEvent("onClose");
+    }
     
     window.removeEventListener("resize", this.handleWindowResize);
     
@@ -228,6 +237,7 @@ export class ChatWidget {
     this.shouldAutoScroll = true;
     this.scrollToBottom({ force: true });
     this.updateDimensions();
+    this.emitEvent("onOpen");
   }
 
   /**
@@ -242,6 +252,7 @@ export class ChatWidget {
     this.chatWindow.classList.remove("acw-open");
     this.launcherButton.setAttribute("aria-expanded", "false");
     this.chatWindow.setAttribute("aria-hidden", "true");
+    this.emitEvent("onClose");
   }
 
   /**
@@ -1190,6 +1201,21 @@ export class ChatWidget {
     
     const index = this.messageManager.addMessage(errorMessage);
     this.appendMessageToDOM(errorMessage, index);
+  }
+
+  private emitEvent<K extends keyof ChatWidgetEvents>(eventName: K): void {
+    const handler = this.eventHandlers[eventName];
+    if (typeof handler !== "function") {
+      return;
+    }
+    try {
+      handler();
+    } catch (error) {
+      console.error(
+        `ALBERT | AI Chat: Error in '${eventName}' event handler.`,
+        error
+      );
+    }
   }
 
   private showInputArea(): void {

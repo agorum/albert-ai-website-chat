@@ -248,6 +248,18 @@ export interface ChatWidgetDimensions {
 }
 
 /**
+ * Optional lifecycle callbacks for the chat widget
+ */
+export interface ChatWidgetEvents {
+  /** Called after the widget has been mounted and initialised */
+  onReady?: () => void;
+  /** Called whenever the chat window is opened */
+  onOpen?: () => void;
+  /** Called whenever the chat window is closed */
+  onClose?: () => void;
+}
+
+/**
  * Configuration for backend chat service integration
  */
 export interface ChatServiceConfig {
@@ -325,6 +337,8 @@ export interface ChatWidgetOptions {
   requirePrivacyConsent: boolean;
   /** Disclaimer configuration */
   disclaimer: ChatDisclaimerOptions;
+  /** Optional lifecycle callbacks */
+  events?: ChatWidgetEvents;
 }
 
 /**

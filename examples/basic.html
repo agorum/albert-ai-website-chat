@@ -166,6 +166,11 @@
             heightPercent: 70,
             minHeightPx: 420,
           },
+          events: {
+            onReady: () => console.log('[basic] chat initialised'),
+            onOpen: () => console.log('[basic] chat opened'),
+            onClose: () => console.log('[basic] chat closed'),
+          },
           teaserDelayMs: 3500,
           mockResponses: [
             'Thanks for your question! I am reviewing everything so I do not miss any detail.',

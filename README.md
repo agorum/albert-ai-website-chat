@@ -153,8 +153,17 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
             { label: 'Privacy', href: 'https://example.com/privacy', target: '_blank' },
             { label: 'Imprint', href: 'https://example.com/imprint', target: '_blank' },
           ],
-          dimensions: {\r\n            widthPercent: 33,\r\n            minWidthPx: 500,\r\n            maxWidthPx: 720,\r\n            heightPercent: 70,
+          dimensions: {
+            widthPercent: 33,
+            minWidthPx: 500,
+            maxWidthPx: 720,
+            heightPercent: 70,
             minHeightPx: 420,
+          },
+          events: {
+            onReady: () => console.log('[docs] Chat ready'),
+            onOpen: () => console.log('[docs] Chat opened'),
+            onClose: () => console.log('[docs] Chat closed'),
           },
           teaserDelayMs: 3500,
           mockResponses: [
@@ -204,6 +213,8 @@ to the `/init` endpoint together with the preset information.
 Set `texts.inputPlaceholder` if you want to change the message input placeholder (default: `Your message ...`).
 
 Limit desktop layouts with `dimensions.maxWidthPx` while mobile viewports continue to open fullscreen.
+
+Hook into lifecycle changes with `events.onReady`, `events.onOpen`, and `events.onClose`.
 
 ## Usage with Bundlers (ESM)
 
@@ -356,6 +367,11 @@ interface ChatWidgetOptions {
     pollIntervalMs?: number;
     storageKey?: string;
   };
+  events?: {
+    onReady?: () => void;
+    onOpen?: () => void;
+    onClose?: () => void;
+  };
   welcomeMessage?: {
     enabled: boolean;
     text?: string;
@@ -369,7 +385,11 @@ interface ChatWidgetOptions {
     styles?: Record<string, string>;
   };
   footerLinks: Array<{ label: string; href: string; target?: string; rel?: string }>;
-  dimensions: {\r\n    widthPercent: number;\r\n    minWidthPx: number;\r\n    maxWidthPx?: number;\r\n    heightPercent: number;
+  dimensions: {
+    widthPercent: number;
+    minWidthPx: number;
+    maxWidthPx?: number;
+    heightPercent: number;
     minHeightPx: number;
   };
   teaserDelayMs: number;
@@ -447,6 +467,9 @@ npm run build
 ```
 
 The demo becomes available at `http://localhost:8080/index.html`. You can pass a different directory to the script, for example `./start.sh public`.
+
+
+
 
 
 
