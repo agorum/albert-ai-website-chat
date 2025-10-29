@@ -650,10 +650,13 @@ export function buildStyles(): string {
         gap: 0;
         align-items: stretch;
         justify-content: flex-start;
+        background: var(--acw-chat-background);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        overflow: hidden;
       }
       .acw-container.acw-container-open .acw-chat {
         width: 100%;
-        height: 100%;
+        height: calc(100% - env(safe-area-inset-bottom, 0px));
         max-height: none;
         border-radius: 0;
         border: none;

@@ -141,6 +141,8 @@ export class ChatWidget {
   private typingTarget: { wrapper: HTMLDivElement; bubble: HTMLDivElement } | null = null;
   private pendingAgentPlaceholderIndex: number | null = null;
   private conversationVersion = 0;
+  private lockedScrollPosition = 0;
+  private isBodyScrollLocked = false;
 
   /**
    * Creates a new ChatWidget instance
@@ -216,6 +218,7 @@ export class ChatWidget {
     } else {
       this.updateLauncherLabel();
     }
+    this.unlockBodyScroll();
     
     window.removeEventListener("resize", this.handleWindowResize);
     
@@ -250,6 +253,9 @@ export class ChatWidget {
     this.hideTeaser();
     this.shouldAutoScroll = true;
     this.scrollToBottom({ force: true });
+    if (this.isMobileViewport()) {
+      this.lockBodyScroll();
+    }
     this.persistOpenState(true);
     this.updateDimensions();
     this.updateLauncherLabel();
@@ -268,6 +274,7 @@ export class ChatWidget {
     this.chatWindow.classList.remove("acw-open");
     this.launcherButton.setAttribute("aria-expanded", "false");
     this.chatWindow.setAttribute("aria-hidden", "true");
+    this.unlockBodyScroll();
     this.persistOpenState(false);
     this.updateLauncherLabel();
     this.emitEvent("onClose");
@@ -438,6 +445,13 @@ export class ChatWidget {
 
   private handleWindowResize = (): void => {
     this.updateDimensions();
+    if (this.isOpen) {
+      if (this.isMobileViewport()) {
+        this.lockBodyScroll();
+      } else {
+        this.unlockBodyScroll();
+      }
+    }
   };
 
   private handleMessagesScroll = (): void => {
@@ -1278,7 +1292,7 @@ export class ChatWidget {
   }
 
   private restoreOpenState(): boolean {
-    if (!this.storage || this.isOpen) {
+    if (!this.storage || this.isOpen || this.isMobileViewport()) {
       return false;
     }
     try {
@@ -1323,6 +1337,46 @@ export class ChatWidget {
       this.inputField.disabled = false;
       this.inputField.placeholder = this.options.texts.inputPlaceholder || DEFAULT_INPUT_PLACEHOLDER;
     }
+  }
+
+  private isMobileViewport(): boolean {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    if (typeof window.matchMedia === "function") {
+      return window.matchMedia("(max-width: 768px)").matches;
+    }
+    return window.innerWidth <= 768;
+  }
+
+  private lockBodyScroll(): void {
+    if (this.isBodyScrollLocked || typeof document === "undefined") {
+      return;
+    }
+    this.lockedScrollPosition = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${this.lockedScrollPosition}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    this.isBodyScrollLocked = true;
+  }
+
+  private unlockBodyScroll(): void {
+    if (!this.isBodyScrollLocked || typeof document === "undefined") {
+      return;
+    }
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.left = "";
+    document.body.style.right = "";
+    document.body.style.width = "";
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
+    window.scrollTo(0, this.lockedScrollPosition);
+    this.isBodyScrollLocked = false;
   }
 
   private hideInputArea(): void {
