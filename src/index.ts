@@ -590,10 +590,7 @@ export class ChatWidget {
       this.setTypingIndicatorToLatestMessage();
     }
 
-    if (this.messageManager.getMessageCount() === 0) {
-      this.ensureWelcomeMessage();
-    }
-
+    this.ensureWelcomeMessage();
     this.ensureDisclaimer();
 
     if (this.shouldAutoScroll) {
@@ -1114,7 +1111,20 @@ export class ChatWidget {
   }
 
   private ensureWelcomeMessage(): void {
-    if (!this.options.welcomeMessage?.enabled || this.welcomeMessageElement) {
+    if (!this.messageList || !this.options.welcomeMessage?.enabled) {
+      return;
+    }
+
+    if (this.welcomeMessageElement) {
+      if (this.welcomeMessageElement.parentElement !== this.messageList) {
+        if (this.messageList.firstChild) {
+          this.messageList.insertBefore(this.welcomeMessageElement, this.messageList.firstChild);
+        } else {
+          this.messageList.appendChild(this.welcomeMessageElement);
+        }
+      } else if (this.messageList.firstChild !== this.welcomeMessageElement) {
+        this.messageList.insertBefore(this.welcomeMessageElement, this.messageList.firstChild);
+      }
       return;
     }
     
