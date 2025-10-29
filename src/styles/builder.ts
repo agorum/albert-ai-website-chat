@@ -37,6 +37,7 @@ export function buildStyles(): string {
       z-index: var(--acw-z-index);
       font-family: var(--acw-font-family);
       color: var(--acw-body-text-color);
+      pointer-events: none;
     }
     
     /* Launcher Button */
@@ -56,6 +57,7 @@ export function buildStyles(): string {
       transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
         color 0.2s ease;
       font-size: 0.95rem;
+      pointer-events: auto;
     }
     .acw-launcher:focus-visible {
       outline: 2px solid var(--acw-launcher-focus-outline);
@@ -91,11 +93,13 @@ export function buildStyles(): string {
       transition: opacity 0.25s ease, transform 0.25s ease;
       border: var(--acw-chat-border-width) solid var(--acw-chat-border-color);
       overflow: hidden;
+      visibility: hidden;
     }
     .acw-chat.acw-open {
       opacity: 1;
       transform: translateY(0) scale(1);
       pointer-events: auto;
+      visibility: visible;
     }
     
     /* Header */
