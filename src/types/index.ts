@@ -239,6 +239,8 @@ export interface ChatWidgetDimensions {
   widthPercent: number;
   /** Minimum width in pixels */
   minWidthPx: number;
+  /** Maximum width in pixels for desktop viewports */
+  maxWidthPx?: number;
   /** Height as percentage of viewport */
   heightPercent: number;
   /** Minimum height in pixels */

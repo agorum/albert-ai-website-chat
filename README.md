@@ -153,10 +153,7 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
             { label: 'Privacy', href: 'https://example.com/privacy', target: '_blank' },
             { label: 'Imprint', href: 'https://example.com/imprint', target: '_blank' },
           ],
-          dimensions: {
-            widthPercent: 33,
-            minWidthPx: 500,
-            heightPercent: 70,
+          dimensions: {\r\n            widthPercent: 33,\r\n            minWidthPx: 500,\r\n            maxWidthPx: 720,\r\n            heightPercent: 70,
             minHeightPx: 420,
           },
           teaserDelayMs: 3500,
@@ -205,6 +202,8 @@ The optional `serviceConfig.title` lets you provide a human-readable session lab
 to the `/init` endpoint together with the preset information.
 
 Set `texts.inputPlaceholder` if you want to change the message input placeholder (default: `Your message ...`).
+
+Limit desktop layouts with `dimensions.maxWidthPx` while mobile viewports continue to open fullscreen.
 
 ## Usage with Bundlers (ESM)
 
@@ -370,10 +369,7 @@ interface ChatWidgetOptions {
     styles?: Record<string, string>;
   };
   footerLinks: Array<{ label: string; href: string; target?: string; rel?: string }>;
-  dimensions: {
-    widthPercent: number;
-    minWidthPx: number;
-    heightPercent: number;
+  dimensions: {\r\n    widthPercent: number;\r\n    minWidthPx: number;\r\n    maxWidthPx?: number;\r\n    heightPercent: number;
     minHeightPx: number;
   };
   teaserDelayMs: number;
@@ -451,3 +447,6 @@ npm run build
 ```
 
 The demo becomes available at `http://localhost:8080/index.html`. You can pass a different directory to the script, for example `./start.sh public`.
+
+
+

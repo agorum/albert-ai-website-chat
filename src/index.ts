@@ -1271,14 +1271,19 @@ export class ChatWidget {
       return;
     }
     
-    const { widthPercent, minWidthPx, heightPercent, minHeightPx } = this.options.dimensions;
+    const { widthPercent, minWidthPx, maxWidthPx, heightPercent, minHeightPx } = this.options.dimensions;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const horizontalPadding = 32;
     
     const desiredWidth = Math.max((viewportWidth * widthPercent) / 100, minWidthPx);
-    const maxWidth = viewportWidth - horizontalPadding;
-    const width = clamp(desiredWidth, minWidthPx, maxWidth);
+    const availableWidth = Math.max(minWidthPx, viewportWidth - horizontalPadding);
+    const isDesktopViewport = viewportWidth > 768;
+    const desktopMaxWidth =
+      isDesktopViewport && typeof maxWidthPx === "number"
+        ? Math.min(availableWidth, maxWidthPx)
+        : availableWidth;
+    const width = clamp(desiredWidth, minWidthPx, Math.max(minWidthPx, desktopMaxWidth));
     
     const buttonHeight = this.launcherButton ? this.launcherButton.offsetHeight : 56;
     const spacing = 36;
