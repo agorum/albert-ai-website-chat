@@ -48,9 +48,12 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
             storageKey: 'albert-chat-session-id',
           },
           theme: {
+            // Typography and card styling
             fontFamily: "'New Science', 'Tahoma', 'Arial', sans-serif",
             chatBorderColor: '#cecece',
             chatShadowColor: 'rgba(0, 107, 255, 0.25)',
+
+            // Header appearance
             headerBackgroundColor: '#EB4D27',
             headerTitleColor: '#FFFFFF',
             headerSubtitleColor: 'rgba(255, 255, 255, 0.85)',
@@ -58,18 +61,26 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
             headerActionIconColor: '#FFFFFF',
             headerActionHoverBackgroundColor: 'rgba(255, 255, 255, 0.15)',
             headerActionFocusOutlineColor: '#FFFFFF',
+
+            // Transcript bubbles
             userMessageBackgroundColor: '#006bff',
             userMessageTextColor: '#ffffff',
             agentMessageBackgroundColor: '#f0f0f0',
             agentMessageTextColor: '#3b3b3b',
+
+            // Input field
             inputBorderColor: '#c0c0c0',
             inputFocusBorderColor: '#006bff',
             inputFocusShadowColor: 'transparent',
             inputDividerColor: '#cecece',
+
+            // Send button
             sendButtonBackgroundColor: '#CECECE',
             sendButtonTextColor: '#3B3B3B',
             sendButtonHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
             sendButtonFocusOutlineColor: '#006bff',
+
+            // Launcher & teaser
             launcherBackgroundColor: '#EB4D27',
             launcherTextColor: '#ffffff',
             launcherShadowColor: 'rgba(0, 107, 255, 0.25)',
@@ -79,17 +90,25 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
             teaserTextColor: '#ffffff',
             teaserBorderColor: '#EB4D27',
             teaserShadowColor: 'rgba(0, 107, 255, 0.2)',
+
+            // Footer area
             footerBackgroundColor: '#EB4D27',
             footerLinkColor: '#FFFFFF',
             footerLinkHoverColor: '#ffd7cc',
+
+            // Consent buttons
             consentAcceptBackgroundColor: '#006bff',
             consentAcceptTextColor: '#ffffff',
             consentAcceptHoverShadowColor: 'rgba(0, 107, 255, 0.25)',
             consentAcceptFocusOutlineColor: '#ffffff',
             consentDeclineTextColor: '#000000',
+            consentDeclineBackgroundColor: 'rgba(255, 255, 255, 0.05)',
             consentDeclineBorderColor: 'rgba(255, 255, 255, 0.6)',
             consentDeclineHoverBackgroundColor: 'rgba(255, 255, 255, 0.12)',
+            consentDeclineHoverShadowColor: 'rgba(0, 0, 0, 0.12)',
             consentDeclineFocusOutlineColor: '#ffffff',
+
+            // Decorative toggles
             showChatBorder: false,
             showHeaderBorder: false,
             showInputBorder: true,
@@ -279,9 +298,11 @@ interface ChatWidgetOptions {
     consentAcceptHoverShadowColor: string;
     consentAcceptFocusOutlineColor: string;
     consentDeclineTextColor: string;
-      consentDeclineBorderColor: string;
-      consentDeclineHoverBackgroundColor: string;
-      consentDeclineFocusOutlineColor: string;
+    consentDeclineBackgroundColor: string;
+    consentDeclineBorderColor: string;
+    consentDeclineHoverBackgroundColor: string;
+    consentDeclineHoverShadowColor: string;
+    consentDeclineFocusOutlineColor: string;
 
       disclaimerTextColor: string;
       showChatBorder: boolean;

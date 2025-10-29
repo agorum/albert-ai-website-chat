@@ -59,135 +59,249 @@
     <script src="../dist/index.global.js" defer></script>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
+        // Base URL of the backend that serves chat responses
         const serviceEndpoint = 'http://10.0.1.86:8010';
 
         AlbertChat.init({
+          // Node where the widget attaches itself
           target: document.body,
           serviceConfig: {
+            // HTTPS endpoint for the ALBERT chat API
             endpoint: serviceEndpoint,
+            // Preset identifier for the server-side configuration
             preset: 'albert',
+            // Polling cadence in milliseconds for incremental updates
             pollIntervalMs: 500,
+            // Browser storage key used to persist the chat session id
             storageKey: 'albert-chat-session-id',
           },
           theme: {
+            // Primary font stack for the entire widget
             fontFamily: "'New Science', 'Tahoma', 'Arial', sans-serif",
+            // Border color around the chat window (only when enabled)
             chatBorderColor: '#cecece',
+            // Drop shadow color for the chat container
             chatShadowColor: 'rgba(0, 107, 255, 0.25)',
+            // Header background color
             headerBackgroundColor: '#EB4D27',
+            // Header title text color
             headerTitleColor: '#FFFFFF',
+            // Header subtitle text color
             headerSubtitleColor: 'rgba(255, 255, 255, 0.85)',
+            // Color applied to the optional header icon
             headerIconColor: '#FFFFFF',
+            // Color of the close/reload icons in the header
             headerActionIconColor: '#FFFFFF',
+            // Hover background for header action buttons
             headerActionHoverBackgroundColor: 'rgba(255, 255, 255, 0.15)',
+            // Focus outline color for header actions
             headerActionFocusOutlineColor: '#FFFFFF',
+            // Background color for user messages
             userMessageBackgroundColor: '#006bff',
+            // Text color for user messages
             userMessageTextColor: '#ffffff',
+            // Background color for agent messages
             agentMessageBackgroundColor: '#f0f0f0',
+            // Text color for agent messages
             agentMessageTextColor: '#3b3b3b',
+            // Border color of the message input field
             inputBorderColor: '#c0c0c0',
+            // Border color applied when the input is focused
             inputFocusBorderColor: '#006bff',
+            // Shadow color for the focused input
             inputFocusShadowColor: 'transparent',
+            // Divider color between transcript and input area
             inputDividerColor: '#cecece',
+            // Background color of the send button
             sendButtonBackgroundColor: '#CECECE',
+            // Text/icon color of the send button
             sendButtonTextColor: '#3B3B3B',
-            sendButtonHoverShadowColor: 'transparent', 
+            // Shadow color when the send button is hovered
+            sendButtonHoverShadowColor: 'transparent',
+            // Focus outline color for the send button
             sendButtonFocusOutlineColor: '#006bff',
+            // Background color of the floating launcher button
             launcherBackgroundColor: '#EB4D27',
+            // Icon color of the launcher button
             launcherTextColor: '#ffffff',
+            // Default shadow cast by the launcher
             launcherShadowColor: 'rgba(0, 107, 255, 0.25)',
+            // Shadow color when hovering the launcher
             launcherHoverShadowColor: 'rgba(0, 107, 255, 0.35)',
+            // Focus outline color for the launcher
             launcherFocusOutlineColor: '#EB4D27',
+            // Background color of the teaser bubble
             teaserBackgroundColor: '#EB4D27',
+            // Text color within the teaser bubble
             teaserTextColor: '#ffffff',
+            // Border color of the teaser bubble
             teaserBorderColor: '#EB4D27',
+            // Drop shadow color for the teaser bubble
             teaserShadowColor: 'rgba(0, 107, 255, 0.2)',
+            // Background color of the footer bar
             footerBackgroundColor: '#EB4D27',
+            // Text color for footer links
             footerLinkColor: '#FFFFFF',
+            // Hover color for footer links
             footerLinkHoverColor: '#ffd7cc',
+            // Background color of the consent accept button
             consentAcceptBackgroundColor: '#006bff',
+            // Text color of the consent accept button
             consentAcceptTextColor: '#ffffff',
+            // Hover shadow color for the consent accept button
             consentAcceptHoverShadowColor: 'transparent',
+            // Focus outline color for the consent accept button
             consentAcceptFocusOutlineColor: '#ffffff',
+            // Text color of the consent decline button
             consentDeclineTextColor: '#000000',
+            // Background color of the consent decline button
             consentDeclineBackgroundColor: 'rgb(212, 212, 212)',
+            // Border color of the consent decline button
             consentDeclineBorderColor: 'rgba(255, 255, 255, 0.6)',
+            // Hover background color of the consent decline button
             consentDeclineHoverBackgroundColor: 'rgba(230, 230, 230)',
-            consentDeclineHoverShadowColor: 'transparent', 
+            // Hover shadow color for the consent decline button
+            consentDeclineHoverShadowColor: 'transparent',
+            // Focus outline color for the consent decline button
             consentDeclineFocusOutlineColor: '#ffffff',
+            // Toggles the chat window border on or off
             showChatBorder: false,
+            // Toggles the header bottom border on or off
             showHeaderBorder: false,
+            // Toggles the input field border on or off
             showInputBorder: true,
+            // Toggles the footer top border on or off
             showFooterBorder: false,
+            // Toggles the teaser border on or off
             showTeaserBorder: false,
+            // Enables the divider line above the input field
             showInputDivider: true,
+            // Shows or hides the custom scrollbar styling
             showScrollbar: false,
           },
           texts: {
+            // Label announced by screen readers for the launcher button
             launcherLabel: 'Ask ALBERT | AI',
+            // Accessible aria-label for the launcher button
             launcherAriaLabel: 'Open the ALBERT | AI chat',
+            // Text displayed inside the teaser bubble
             teaserText: 'Need a hand? ALBERT | AI is ready.',
+            // Main heading shown in the chat header
             headerTitle: 'ALBERT | AI Assistant',
+            // Optional subtitle shown below the header title
             headerSubtitle: 'We are happy to support you',
+            // Label of the send button
             sendButtonLabel: 'Send',
+            // Label for the close button in the header
             closeLabel: 'Close window',
+            // Label for the reload button in the header
             reloadLabel: 'Restart',
+            // Default greeting when the chat is first opened
             initialMessage: 'Hello! Great to see you. What can ALBERT | AI explain today?',
+            // Message shown when asking for privacy consent
             consentPrompt:
               'Before we start, please read our privacy notice and confirm your consent.',
+            // Text inside the consent accept button
             consentAcceptLabel: 'Accept',
+            // Text inside the consent decline button
             consentDeclineLabel: 'Decline',
+            // Message displayed after the user declines consent
             consentDeclinedMessage:
               'Without consent the chat cannot continue. Restart if you change your mind.',
+            // Tooltip shown while the agent is still composing a reply
             sendWhileStreamingTooltip: 'Please wait until the current response has finished.',
+            // Tooltip shown when consent is required before sending a message
             sendWhileConsentPendingTooltip:
               'You can only send messages after accepting the privacy notice.',
+            // Tooltip shown when the chat has been terminated
             sendWhileTerminatedTooltip:
               'The chat is inactive. Restart to begin a new conversation.',
+            // Placeholder shown while a tool call is running
             toolCallPlaceholder: 'Give me a moment while I look that up...',
           },
           icons: {
+            // Header icon rendered next to the title
             headerIcon: './assets/agorum-logo.svg',
+            // Unicode glyph for the close button
             closeIcon: '\u2716',
+            // Unicode glyph for the reload button
             reloadIcon: '\u21bb',
+            // Unicode glyph for the launcher button
             launcherIcon: '\u{1f4ac}',
+            // Unicode glyph for the send button
             sendIcon: '\u27a4',
           },
           footerLinks: [
-            { label: 'Privacy', href: 'https://example.com/privacy', target: '_blank' },
-            { label: 'Imprint', href: 'https://example.com/imprint', target: '_blank' },
+            {
+              // Visible label for the first footer link
+              label: 'Privacy',
+              // URL opened when the first footer link is clicked
+              href: 'https://example.com/privacy',
+              // Target attribute for the first footer link
+              target: '_blank',
+            },
+            {
+              // Visible label for the second footer link
+              label: 'Imprint',
+              // URL opened when the second footer link is clicked
+              href: 'https://example.com/imprint',
+              // Target attribute for the second footer link
+              target: '_blank',
+            },
           ],
           dimensions: {
+            // Chat width expressed as percentage of the viewport width
             widthPercent: 33,
+            // Minimum chat width in pixels
             minWidthPx: 500,
+            // Chat height expressed as percentage of the viewport height
             heightPercent: 70,
+            // Minimum chat height in pixels
             minHeightPx: 420,
           },
+          // Delay (ms) before the teaser bubble becomes visible
           teaserDelayMs: 3500,
+          // Mocked agent replies used when no backend is available
           mockResponses: [
             'Thanks for your question! I am reviewing everything so I do not miss any detail.',
             'Here is a structured answer:\n\n1. Describe the current status\n2. List the relevant steps\n3. Mention alternatives worth considering\n4. Close with a short recommendation\n\nNeed more depth on any point? Just let me know.',
             'I also gathered a few extra tips:\n\n- Double-check your admin configuration.\n- Compare the latest log files for anomalies.\n- Document the next actions so your team stays aligned.\n\nAnything else ALBERT | AI can do for you?',
           ],
+          // Minimum and maximum delay (ms) between mock responses
           mockResponseDelayMs: [900, 1800],
+          // Stacking context z-index for the entire widget
           zIndex: 12000,
+          // Locale used for timestamps and formatting
           locale: 'de-DE',
+          // Requires users to accept privacy consent before chatting
           requirePrivacyConsent: true,
           welcomeMessage: {
+            // Enables the pinned welcome message bubble
             enabled: true,
+            // Markdown text shown in the welcome bubble
             text: '**Hello!** ALBERT | AI is on standby. How can we assist you today?',
+            // Optional class name applied to the welcome bubble
             className: 'acw-welcome-highlight',
             styles: {
+              // Inline color override for the welcome bubble
               color: '#000000',
+              // Inline font weight override for the welcome bubble
               fontWeight: '600',
             },
           },
           disclaimer: {
+            // Enables a disclaimer below the transcript
             enabled: true,
+            // Text rendered inside the disclaimer block
             text: 'Note: ALBERT | AI may be incorrect. Please verify important information.',
+            // Optional class name applied to the disclaimer
             className: 'acw-disclaimer-note',
             styles: {
+              // Font size of the disclaimer text
               fontSize: '0.78rem',
+              // Text color of the disclaimer
               color: '#3b3b3b',
+              // Top margin of the disclaimer block
               marginTop: '12px',
             },
           },
@@ -196,4 +310,3 @@
     </script>
   </body>
 </html>
-
