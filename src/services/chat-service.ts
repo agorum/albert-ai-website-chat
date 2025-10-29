@@ -139,6 +139,9 @@ export class ChatService {
         if (this.config!.preset) {
           body.preset = this.config!.preset;
         }
+        if (this.config!.title) {
+          body.title = this.config!.title;
+        }
         const response = await this.requestJson<ChatServiceInitResponse>("/init", {
           method: "POST",
           body: JSON.stringify(body),

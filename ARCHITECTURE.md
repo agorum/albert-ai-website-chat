@@ -114,7 +114,7 @@ src/
 - **Adding new UI controls**: create DOM builders in `ui/builders.ts`, wire them up in `ChatWidget`.
 - **New configuration options**: update the type (`types/index.ts`), defaults (`config/default-options.ts`), and wherever the option is read.
 - **Styling tweaks**: adjust theme variables or tweak the CSS template in `styles/builder.ts`.
-- **Backend integration**: replace mock responses by pointing `serviceConfig.endpoint` to a real API and extending `chat-service.ts`.
+- **Backend integration**: replace mock responses by pointing `serviceConfig.endpoint` to a real API, extend `chat-service.ts`, and set `serviceConfig.title` when you want to forward a human-readable session name with `/init`.
 - **Testing**: The `examples/` folder contains demo pages that are useful for manual verification. Automated tests live under `playwright/` (if configured).
 
 ## Naming Conventions

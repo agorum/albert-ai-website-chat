@@ -44,6 +44,7 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
           serviceConfig: {
             endpoint: 'http://10.0.1.86:8010',
             preset: 'albert',
+            title: 'ALBERT Support Session',
             pollIntervalMs: 500,
             storageKey: 'albert-chat-session-id',
           },
@@ -199,6 +200,9 @@ The ESM bundle is written to `dist/index.js`, the global/IIFE bundle to `dist/in
 </html>
 ```
 
+The optional `serviceConfig.title` lets you provide a human-readable session label that is forwarded
+to the `/init` endpoint together with the preset information.
+
 ## Usage with Bundlers (ESM)
 
 ```ts
@@ -213,6 +217,7 @@ init({
   serviceConfig: {
     endpoint,
     preset: 'albert',
+    title: 'ALBERT Onboarding',
   },
   welcomeMessage: {
     enabled: true,
@@ -224,6 +229,8 @@ init({
   },
 });
 ```
+
+`serviceConfig.title` in this example labels the session so that your backend can show friendlier names in dashboards or logs.
 
 ## Configuration Overview
 
@@ -343,6 +350,7 @@ interface ChatWidgetOptions {
   serviceConfig?: {
     endpoint: string;
     preset?: string;
+    title?: string;
     pollIntervalMs?: number;
     storageKey?: string;
   };
@@ -430,7 +438,7 @@ server {
 - The `Authorization` header injects the Bearer token of the agorum core service user so that ALBERT \| AI accepts the request.
 - The optional CORS headers restrict browser access to your trusted origin and only allow the required headers and methods. The `OPTIONS` branch returns a 204 for preflight requests, so browsers can complete their CORS checks.
 
-Once the proxy is live, point the widgetâ€™s `serviceConfig.endpoint` to the public `/albert/chat/` location on your nginx host. The widget will forward all chat requests through the secure proxy to ALBERT \| AI.
+Once the proxy is live, point the widget's `serviceConfig.endpoint` to the public `/albert/chat/` location on your nginx host. The widget will forward all chat requests through the secure proxy to ALBERT | AI. Optionally, use `serviceConfig.title` to tag sessions with a descriptive name that you can log or display on the backend.
 
 ## Local Test Server
 

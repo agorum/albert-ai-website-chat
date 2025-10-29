@@ -251,6 +251,8 @@ export interface ChatServiceConfig {
   endpoint: string;
   /** Optional preset configuration name */
   preset?: string;
+  /** Optional human-friendly title sent during session initialization */
+  title?: string;
   /** Polling interval in milliseconds for updates */
   pollIntervalMs?: number;
   /** LocalStorage key for persisting session ID */

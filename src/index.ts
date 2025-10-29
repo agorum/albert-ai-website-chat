@@ -16,7 +16,8 @@
  *   theme: { headerBackgroundColor: '#2563eb', headerTitleColor: '#ffffff' },
  *   texts: { headerTitle: 'Customer Support' },
  *   serviceConfig: {
- *     endpoint: 'https://api.example.com/chat'
+ *     endpoint: 'https://api.example.com/chat',
+ *     title: 'Support Session'
  *   }
  * });
  * ```
