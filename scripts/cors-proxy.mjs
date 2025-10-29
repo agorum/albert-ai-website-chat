@@ -4,7 +4,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
 
-const DEFAULT_TARGET = 'https://www.yourserver.com/albert/chat';
+const DEFAULT_TARGET = 'https://www.yourserver.com/albert/chat-test';
 const DEFAULT_PORT = 8010;
 
 const targetArg = process.argv[2];
@@ -65,7 +65,7 @@ const server = createServer((req, res) => {
   const requestHeaders = {
     ...req.headers,
     host: upstreamUrl.host,
-    origin: targetOrigin,
+    origin: 'http://localhost',
   };
   delete requestHeaders['content-length'];
 

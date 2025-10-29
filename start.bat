@@ -11,7 +11,7 @@ set "EXAMPLES_DIR=%~1"
 if "%EXAMPLES_DIR%"=="" set "EXAMPLES_DIR=examples"
 
 if not defined PROXY_PORT set "PROXY_PORT=8010"
-if not defined PROXY_TARGET set "PROXY_TARGET=https://www.agorum.com/albert/chat/"
+if not defined PROXY_TARGET set "PROXY_TARGET=https://www.agorum.com/albert/chat-test/"
 
 :: Ensure the dist folder exists
 if not exist "dist\" (
